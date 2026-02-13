@@ -220,9 +220,10 @@ class PwnStoreUI(plugins.Plugin):
             if (res.success) {
                 if (!installedPlugins.includes(name)) installedPlugins.push(name);
                 renderPlugins();
-                if (res.config_required) {
-                    const pData = allPlugins.find(x => x.name === name);
-                    showConfigModal(name, res.config_hints, pData ? (pData.url || pData.download_url) : '');
+                if (res.repo_url) {
+                    showConfigModal(name, res.repo_url);
+                } else {
+                    showMessage(`${name} installed! Restart Pwnagotchi to activate.`, 'success');
                 }
             } else { showMessage('Install failed', 'error'); }
         }
@@ -237,42 +238,23 @@ class PwnStoreUI(plugins.Plugin):
             }
         }
 
-        function showConfigModal(name, hints, repoUrl) {
+        function showConfigModal(name, repoUrl) {
             const overlay = document.createElement('div');
             overlay.className = 'config-overlay'; overlay.id = 'configOverlay';
             overlay.innerHTML = `
                 <div class="config-modal">
                     <div class="config-header">
-                        <h2>⚙️ Configure ${name}</h2>
-                        <p>Complete setup to activation plugin:</p>
+                        <h2>⚙️ ${name} installed!</h2>
+                        <p>Configuration may be required</p>
                     </div>
-                    <form id="configForm">
-                        ${hints.map(h => `
-                            <div class="config-field">
-                                <label>${h.key}</label>
-                                <input type="text" name="${h.key}" placeholder="${h.placeholder}" value="${h.default}">
-                                <small>${h.help}</small>
-                            </div>
-                        `).join('')}
-                        <button type="button" class="config-btn" onclick="submitConfig('${name}')">Save & Apply</button>
-                        <button type="button" class="config-btn config-btn-secondary" onclick="document.getElementById('configOverlay').remove()">Skip</button>
-                        ${repoUrl ? `<a href="${repoUrl}" target="_blank" class="repo-link">View Documentation on GitHub</a>` : ''}
-                    </form>
+                    <div style="margin: 20px 0; text-align: center;">
+                        <p style="margin-bottom: 15px;">Edit <code>/etc/pwnagotchi/config.toml</code> to configure this plugin.</p>
+                        ${repoUrl ? `<a href="${repoUrl}" target="_blank" class="config-btn" style="display: inline-block; text-decoration: none;">📖 View Setup Instructions</a>` : ''}
+                        <button type="button" class="config-btn config-btn-secondary" onclick="document.getElementById('configOverlay').remove()">Close</button>
+                    </div>
                 </div>
             `;
             document.body.appendChild(overlay);
-        }
-
-        async function submitConfig(name) {
-            const form = document.getElementById('configForm');
-            const formData = new FormData(form);
-            const config = {};
-            formData.forEach((value, key) => { config[key] = value; });
-            const res = await apiRequest('/plugins/pwnstore_ui/api/configure', { method: 'POST', body: JSON.stringify({ plugin: name, config: config }) });
-            if (res.success) {
-                document.getElementById('configOverlay').remove();
-                showMessage('Configured! Restart Pwnagotchi.', 'success');
-            }
         }
 
         function showInfo(name) {
@@ -303,39 +285,6 @@ class PwnStoreUI(plugins.Plugin):
 </html>
         """
         return html.replace('__CSRF_TOKEN__', csrf_token)
-
-    def _parse_config_hints(self, cli_output, plugin_name):
-        hints = []
-        for line in cli_output.split('\n'):
-            if f'main.plugins.{plugin_name}.' in line:
-                match = re.search(rf'main\.plugins\.{plugin_name}\.([\w_]+)', line)
-                if match:
-                    key = match.group(1)
-                    if key != "enabled":
-                        hints.append(self._analyze_field_in_code(key, plugin_name))
-        return hints
-
-    def _analyze_field_in_code(self, key, plugin_name):
-        path = f"/usr/local/share/pwnagotchi/custom-plugins/{plugin_name}.py"
-        hint = {'key': key, 'default': '', 'placeholder': 'value', 'help': f'Setting for {key}'}
-        if not os.path.exists(path): return hint
-        try:
-            with open(path, 'r', errors='ignore') as f:
-                code = f.read()
-                match = re.search(rf"['\"]?{key}['\"]?,\s*['\"]?([^'\",\)]+)['\"]?", code)
-                if match: 
-                    v = match.group(1).strip()
-                    if v != "...": hint['default'] = v
-                
-                # Knowledge Base
-                k = key.lower()
-                if 'orientation' in k: hint['help'] = "vertical or horizontal"; hint['default'] = "vertical"
-                if 'color' in k: hint['help'] = "black, white, or red"; hint['default'] = "black"
-                if 'invert' in k or 'leaveon' in k: hint['help'] = "true or false"; hint['default'] = "false"
-                if 'fields' in k: hint['help'] = "e.g. ['mem', 'cpu', 'temp']"; hint['default'] = "['mem', 'cpu']"
-                if 'position' in k: hint['default'] = "[0, 0]"; hint['help'] = "Coordinates"
-        except: pass
-        return hint
 
     def _restart_pwnagotchi(self):
         """Triggers a service restart in a separate thread"""
@@ -384,8 +333,24 @@ class PwnStoreUI(plugins.Plugin):
         data = request.get_json(force=True)
         name = data.get('plugin')
         result = subprocess.run(['pwnstore', 'install', name], capture_output=True, text=True)
-        hints = self._parse_config_hints(result.stdout, name)
-        return Response(json.dumps({'success': result.returncode == 0, 'config_required': len(hints) > 0, 'config_hints': hints}), mimetype='application/json')
+        
+        # Get repo URL
+        repo_url = ''
+        try:
+            r = requests.get(self.store_url, timeout=10)
+            plugins = r.json()
+            plugin_data = next((p for p in plugins if p['name'] == name), None)
+            if plugin_data:
+                repo_url = plugin_data.get('download_url', '')
+                if '/archive/' in repo_url:
+                    repo_url = repo_url.split('/archive/')[0]
+        except:
+            pass
+        
+        return Response(json.dumps({
+            'success': result.returncode == 0,
+            'repo_url': repo_url
+        }), mimetype='application/json')
 
     def _uninstall_plugin(self, request):
         data = request.get_json(force=True)

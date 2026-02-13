@@ -176,29 +176,6 @@ def show_info(args):
     print(f"\n{YELLOW}Description:{RESET}\n{plugin_data['description']}")
     print(f"\n{YELLOW}Download URL:{RESET}\n{plugin_data['download_url']}\n")
 
-def scan_for_config_params(file_path, plugin_name):
-    """Refined scanner to ignore noise keywords."""
-    params = []
-    ignore = [
-        'main', 'plugins', 'enabled', 'name', 'whitelist', 'screen', 'display', 
-        'none', 'false', 'true', 'self', 'options', 'kwargs', 'args', 'data',
-        'result', 'logging', 'status', 'json', 'requests', 'path', 'file', 'time', plugin_name
-    ]
-    try:
-        with open(file_path, 'r', errors='ignore') as f:
-            for line in f:
-                if any(bad in line for bad in ['requests.', 'logging.', 'json.', 'print(', 'os.', 'time.']):
-                    continue
-                matches = re.findall(r"self\.options\s*\[\s*['\"]([^'\"]+)['\"]\s*\]", line)
-                if 'config' in line or 'options' in line:
-                    matches += re.findall(r"\.get\(\s*['\"]([^'\"]+)['\"]", line)
-                for m in matches:
-                    clean = m.strip()
-                    if clean.lower() not in ignore and len(clean) > 1 and '/' not in clean:
-                        params.append(clean)
-    except: pass
-    return sorted(list(set(params)))
-
 def upgrade_tool(args):
     check_sudo()
     print(f"[*] Updating PwnStore...")
@@ -266,12 +243,12 @@ def install_plugin(args):
         print(f"{GREEN}[+] Installed to {final_file_path}{RESET}")
         update_config(args.name, enable=True)
         if not already_installed:
-            params = scan_for_config_params(final_file_path, args.name)
-            if params:
-                print(f"\n{YELLOW}[!] CONFIG REQUIRED:{RESET}")
-                for p in params:
-                    val = "['mem', 'cpu']" if p == 'fields' else "value"
-                    print(f"  main.plugins.{args.name}.{p} = {val}")
+            print(f"\n{YELLOW}[!] Configuration may be required{RESET}")
+            repo_url = plugin_data.get('download_url', '')
+            if '/archive/' in repo_url:
+                repo_url = repo_url.split('/archive/')[0]
+            print(f"{CYAN}View setup docs: {repo_url}{RESET}")
+            print(f"{CYAN}Edit config: /etc/pwnagotchi/config.toml{RESET}")
     except Exception as e: print(f"{RED}[!] Failed: {e}{RESET}")
 
 def uninstall_plugin(args):
