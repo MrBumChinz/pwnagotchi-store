@@ -69,44 +69,40 @@
         }
         .social-link:hover { color: #000; background: var(--accent); border-color: var(--accent); transform: translateY(-2px); }
 
-        /* --- UPGRADED INSTALL BANNER --- */
+        /* --- INSTALL BANNER --- */
         .install-banner {
-            max-width: 850px; margin: 40px auto 60px auto; 
-            display: flex; flex-direction: column; align-items: center;
-        }
-        .install-title { 
-            font-family: var(--font-pixel); font-size: 1.5rem; color: var(--accent); 
-            margin-bottom: 10px; letter-spacing: 1px;
+            max-width: 600px; margin: 40px auto 20px auto; 
+            text-align: center;
         }
         
-        /* The Container */
         .install-box {
-            display: flex; width: 100%; background: #000;
-            border: 1px solid var(--accent); border-radius: 8px;
+            background: #000; border: 1px solid var(--accent); border-radius: 8px;
             box-shadow: 0 0 15px rgba(76, 175, 80, 0.15);
-            overflow: hidden; transition: box-shadow 0.2s;
-            cursor: pointer;
+            padding: 20px 30px; transition: all 0.2s; cursor: pointer;
+            display: inline-block;
         }
-        .install-box:hover { box-shadow: 0 0 25px rgba(76, 175, 80, 0.3); }
+        .install-box:hover { box-shadow: 0 0 25px rgba(76, 175, 80, 0.3); transform: scale(1.02); }
 
-        /* The Command Text (Scrollable) */
-        .install-text {
-            flex-grow: 1; padding: 15px 20px;
-            color: #ccc; font-family: var(--font-mono); font-size: 0.9rem;
-            white-space: nowrap; overflow-x: auto; /* Horizontal scroll */
-            scrollbar-width: none; /* Firefox hide scrollbar */
-            display: flex; align-items: center;
+        .install-title { 
+            font-family: var(--font-pixel); font-size: 1.8rem; color: var(--accent); 
+            margin-bottom: 8px; letter-spacing: 1px;
         }
-        .install-text::-webkit-scrollbar { display: none; } /* Chrome hide scrollbar */
+        
+        .install-subtitle {
+            font-size: 0.85rem; color: #666; margin-bottom: 15px;
+        }
 
-        /* The Copy Button (Right Side) */
         .install-action {
-            background: var(--card-bg); border-left: 1px solid #333;
-            padding: 0 25px; display: flex; align-items: center; justify-content: center;
-            color: var(--accent); font-family: var(--font-pixel); font-size: 1.2rem;
-            transition: all 0.2s;
+            font-family: var(--font-pixel); font-size: 1.5rem;
+            color: var(--accent); transition: all 0.2s;
         }
-        .install-box:hover .install-action { background: var(--accent); color: #000; }
+        .install-box:hover .install-action { color: #fff; }
+
+        .contribute-link {
+            margin-top: 15px; margin-bottom: 40px; font-size: 0.9rem; color: #666;
+        }
+        .contribute-link a { color: #888; text-decoration: underline; transition: color 0.2s; }
+        .contribute-link a:hover { color: var(--accent); }
 
         /* Filters */
         .filters { display: flex; justify-content: center; gap: 10px; margin-bottom: 30px; flex-wrap: wrap; }
@@ -237,7 +233,7 @@
         <h1>PwnStore</h1>
         <div class="subtitle">Unofficial Plugin Registry</div>
         <div class="credits">
-            Built by WPA2 &bull; <a href="https://buymeacoffee.com/wpa2" target="_blank">Buy me a coffee</a>
+            Built by <a href="https://github.com/wpa-2" target="_blank">WPA2</a> &bull; <a href="https://buymeacoffee.com/wpa2" target="_blank">Buy me a coffee</a>
         </div>
         
         <nav class="social-nav">
@@ -250,10 +246,13 @@
     </header>
 
     <div class="install-banner">
-        <div class="install-title">INSTALL PWNSTORE</div>
         <div class="install-box" onclick="copyInstallCmd()">
-            <div class="install-text" id="install-cmd-text">sudo wget -O /usr/local/bin/pwnstore https://raw.githubusercontent.com/wpa-2/pwnagotchi-store/main/pwnstore.py && sudo chmod +x /usr/local/bin/pwnstore</div>
-            <div class="install-action" id="install-btn-text">COPY</div>
+            <div class="install-title">INSTALL PWNSTORE</div>
+            <div class="install-subtitle">Click to copy install command</div>
+            <div class="install-action" id="install-btn-text">[COPY]</div>
+        </div>
+        <div class="contribute-link">
+            Want to add your plugin? <a href="https://github.com/wpa-2/pwnagotchi-store" target="_blank">Submit a PR</a>
         </div>
     </div>
 
@@ -385,7 +384,7 @@
         
         // HEADER INSTALL COPY
         function copyInstallCmd() {
-            const text = document.getElementById('install-cmd-text').innerText;
+            const text = "sudo wget -O /usr/local/bin/pwnstore https://raw.githubusercontent.com/wpa-2/pwnagotchi-store/main/pwnstore.py && sudo chmod +x /usr/local/bin/pwnstore";
             const btn = document.getElementById('install-btn-text');
             
             if (navigator.clipboard && window.isSecureContext) {
@@ -398,7 +397,7 @@
             }
             
             const originalText = btn.innerText;
-            btn.innerText = "COPIED!";
+            btn.innerText = "[COPIED!]";
             setTimeout(() => btn.innerText = originalText, 2000);
         }
 
