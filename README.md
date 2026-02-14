@@ -91,9 +91,14 @@ sudo wget -O /usr/local/share/pwnagotchi/custom-plugins/pwnstore_ui.py https://r
 sudo nano /etc/pwnagotchi/config.toml
 ```
 
-Add this line:
-```toml
-main.plugins.pwnstore_ui.enabled = true
+Add these lines:
+```
+[main.plugins.pwnstore]
+enabled = true
+
+[main.plugins.pwnstore_ui]
+enabled = true
+
 ```
 
 Restart Pwnagotchi:
