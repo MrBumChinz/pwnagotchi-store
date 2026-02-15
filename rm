@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PwnStore</title>
+    
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self';">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --bg-color: #121212;
+            --card-bg: #1e1e1e;
+            --text-main: #e0e0e0;
+            --text-muted: #888;
+            --accent: #4caf50;
+            --danger: #ff5555;
+            --info: #4fc3f7;
+            --font-main: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            --font-pixel: 'VT323', monospace;
+        }
+
+        /* ... [REST OF YOUR CSS REMAINS THE SAME] ... */
+        * { box-sizing: border-box; }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: var(--font-main);
+            margin: 0;
+            padding: 40px 20px;
+        }
+
+        a { text-decoration: none; color: inherit; }
+
+        /* Header */
+        header { text-align: center; margin-bottom: 40px; }
+
+        .pwn-face {
+            font-family: 'Arial', sans-serif;
+            font-size: 3.5rem;
+            color: var(--text-main);
+            margin-bottom: 5px;
+            text-shadow: 0 0 15px rgba(76, 175, 80, 0.3);
+        }
+
+        h1 { 
+            font-family: var(--font-pixel);
+            font-weight: 400; margin: 0; font-size: 4rem; color: #fff; 
+            line-height: 0.8; text-transform: uppercase; letter-spacing: 2px;
+        }
+        
+        .subtitle { 
+            color: var(--text-muted); font-size: 1rem; margin-top: 10px; 
+            font-weight: 500; letter-spacing: 1px; text-transform: uppercase;
+        }
+
+        .credits {
+            margin-top: 10px; font-size: 0.85rem; color: #666; 
+            font-family: var(--font-main); font-weight: 500;
+        }
+        .credits a:hover { color: var(--accent); }
+
+        /* Social Nav */
+        .social-nav { margin-top: 25px; display: flex; justify-content: center; gap: 15px; flex-wrap: wrap; }
+        .social-link {
+            font-family: var(--font-pixel); font-size: 1.3rem; color: var(--text-muted);
+            border: 1px solid #333; padding: 5px 12px; border-radius: 4px; transition: all 0.2s; background: #1a1a1a;
+        }
+        .social-link:hover { color: #000; background: var(--accent); border-color: var(--accent); transform: translateY(-2px); }
+
+        /* --- INSTALL BANNER --- */
+        .install-banner {
+            max-width: 600px; margin: 40px auto 20px auto; 
+            text-align: center;
+        }
+        
+        .install-box {
+            background: #000; border: 1px solid var(--accent); border-radius: 8px;
+            box-shadow: 0 0 15px rgba(76, 175, 80, 0.15);
+            padding: 20px 30px; transition: all 0.2s; cursor: pointer;
+            display: inline-block;
+        }
+        .install-box:hover { box-shadow: 0 0 25px rgba(76, 175, 80, 0.3); transform: scale(1.02); }
+
+        .install-title { 
+            font-family: var(--font-pixel); font-size: 1.8rem; color: var(--accent); 
+            margin-bottom: 8px; letter-spacing: 1px;
+        }
+        
+        .install-subtitle {
+            font-size: 0.85rem; color: #666; margin-bottom: 15px;
+        }
+
+        .install-action {
+            font-family: var(--font-pixel); font-size: 1.5rem;
+            color: var(--accent); transition: all 0.2s;
+        }
+        .install-box:hover .install-action { color: #fff; }
+
+        .contribute-link {
+            margin-top: 15px; margin-bottom: 40px; font-size: 0.9rem; color: #666;
+        }
+        .contribute-link a { color: #888; text-decoration: underline; transition: color 0.2s; }
+        .contribute-link a:hover { color: var(--accent); }
+
+        /* Filters */
+        .filters { display: flex; justify-content: center; gap: 10px; margin-bottom: 30px; flex-wrap: wrap; }
+        .filter-btn {
+            background: #1a1a1a; border: 1px solid #333; color: #888; padding: 8px 16px;
+            border-radius: 20px; font-family: var(--font-main); font-size: 0.85rem; cursor: pointer;
+            transition: all 0.2s; text-transform: uppercase; font-weight: 600;
+        }
+        .filter-btn:hover, .filter-btn.active { background: var(--accent); color: #000; border-color: var(--accent); }
+
+        /* Search */
+        .search-container { max-width: 600px; margin: 0 auto 40px auto; }
+        input#search {
+            width: 100%; padding: 16px 25px; background: #1a1a1a;
+            border: 1px solid #333; border-radius: 50px; color: #fff;
+            font-size: 1.2rem; font-family: var(--font-pixel); outline: none; transition: all 0.3s ease;
+        }
+        input#search:focus { border-color: var(--accent); box-shadow: 0 0 15px rgba(76, 175, 80, 0.1); }
+
+        /* Grid */
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 25px; max-width: 1200px; margin: 0 auto; }
+
+        /* Cards */
+        .card {
+            background: var(--card-bg); border-radius: 16px; padding: 25px; position: relative;
+            border: 1px solid #2a2a2a; transition: all 0.3s ease; display: flex; flex-direction: column;
+            height: 220px; overflow: hidden;
+        }
+        .card:hover { transform: translateY(-5px); border-color: var(--accent); box-shadow: 0 10px 30px rgba(0,0,0,0.4); }
+
+        .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
+        .card h2 { 
+            margin: 0; font-size: 1.4rem; color: var(--accent); font-family: var(--font-pixel);
+            font-weight: 400; letter-spacing: 1px; white-space: nowrap; overflow: hidden; 
+            text-overflow: ellipsis; padding-right: 50px; 
+        }
+        
+        .repo-link {
+            position: absolute; top: 25px; right: 25px;
+            font-family: var(--font-pixel); font-size: 1rem; color: #555; border: 1px solid #333;
+            padding: 2px 6px; border-radius: 4px; transition: color 0.2s;
+        }
+        .repo-link:hover { color: #fff; border-color: #fff; }
+
+        .meta-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .author { font-size: 0.8rem; color: #555; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 60%; }
+        
+        .badges { display: flex; gap: 5px; }
+        .badge { background: #2a2a2a; font-size: 0.75rem; padding: 2px 6px; border-radius: 4px; color: #777; font-family: var(--font-pixel); }
+        .badge.cat { color: var(--accent); border: 1px solid #333; }
+
+        .desc { 
+            font-size: 0.9rem; color: #bbb; line-height: 1.5; overflow: hidden; height: 4.5em; 
+            display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+        }
+        .desc::first-letter { text-transform: uppercase; }
+
+        /* Hover Button */
+        .install-overlay {
+            position: absolute; bottom: 0; left: 0; width: 100%; padding: 20px;
+            background: linear-gradient(to top, var(--card-bg) 40%, transparent);
+            transform: translateY(100%); transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex; justify-content: center; align-items: flex-end; height: 100px; 
+        }
+        .card:hover .install-overlay { transform: translateY(0); }
+        
+        button.install-btn {
+            width: auto; min-width: 120px; padding: 8px 24px; background: var(--accent); color: #000;
+            border: none; border-radius: 50px; font-family: var(--font-pixel); font-size: 1.2rem;
+            cursor: pointer; box-shadow: 0 4px 15px rgba(76, 175, 80, 0.4); text-transform: uppercase;
+        }
+        button.install-btn:hover { background: #fff; }
+
+        @media (hover: none) {
+            .install-overlay { transform: translateY(0); background: none; position: relative; padding: 20px 0 0 0; height: auto; }
+            .card { height: auto; }
+            .desc { -webkit-line-clamp: 99; height: auto; }
+            button.install-btn { background: #333; color: #fff; box-shadow: none; }
+        }
+
+        /* MODAL */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); backdrop-filter: blur(5px); z-index: 1000; justify-content: center; align-items: center; }
+        .modal { background: #1a1a1a; padding: 30px; border-radius: 16px; width: 90%; max-width: 600px; text-align: left; box-shadow: 0 20px 60px rgba(0,0,0,0.8); border: 1px solid #333; }
+        
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; border-bottom: 1px solid #333; padding-bottom: 15px; }
+        
+        .modal h3 { margin: 0; color: #fff; font-size: 2rem; font-family: 'VT323', monospace; color: var(--accent); letter-spacing: 1px; }
+        
+        .close-x { 
+            background: none; border: none; color: #666; font-size: 2rem; line-height: 1;
+            cursor: pointer; transition: color 0.2s; font-family: var(--font-main); padding: 0 10px;
+        }
+        .close-x:hover { color: var(--danger); }
+
+        /* Command Rows */
+        .cmd-row { display: flex; align-items: center; gap: 15px; margin-bottom: 15px; }
+        
+        .cmd-label { 
+            width: 85px; font-size: 0.85rem; font-weight: 800; font-family: var(--font-main); 
+            text-align: right; letter-spacing: 0.5px;
+        }
+        
+        .cmd-box { 
+            flex-grow: 1; background: #000; color: #ccc; font-family: 'VT323', monospace; font-size: 1.2rem;
+            padding: 10px 15px; border-radius: 6px; border: 1px solid #333; 
+            cursor: pointer; transition: all 0.2s; position: relative;
+            white-space: nowrap; overflow-x: auto; scrollbar-width: none;
+        }
+        .cmd-box::-webkit-scrollbar { display: none; }
+        
+        .cmd-box:hover { border-color: #666; color: #fff; background: #0a0a0a; }
+        .cmd-box:active { transform: scale(0.98); }
+        
+        .cmd-box:hover::after {
+            content: "COPY"; position: absolute; right: 0; top: 0; bottom: 0;
+            background: linear-gradient(to right, transparent, #0a0a0a 20%);
+            padding: 0 15px; display: flex; align-items: center;
+            color: var(--accent); font-size: 0.8rem; font-family: var(--font-main); font-weight: bold;
+            border-radius: 0 6px 6px 0;
+        }
+
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="pwn-face">(◕‿‿◕)</div>
+        <h1>PwnStore</h1>
+        <div class="subtitle">Unofficial Plugin Registry</div>
+        <div class="credits">
+            Built by <a href="https://github.com/wpa-2" target="_blank">WPA2</a> &bull; <a href="https://buymeacoffee.com/wpa2" target="_blank">Buy me a coffee</a>
+        </div>
+        
+        <nav class="social-nav">
+            <a href="https://discord.gg/PgaU3Vp" target="_blank" class="social-link">[DISCORD]</a>
+            <a href="https://github.com/jayofelony/pwnagotchi/wiki" target="_blank" class="social-link">[GITHUB/WIKI]</a>
+            <a href="https://reddit.com/r/pwnagotchi" target="_blank" class="social-link">[REDDIT]</a>
+            <a href="https://pwnagotchi.org" target="_blank" class="social-link">[PWNAGOTCHI.ORG]</a>
+            <a href="https://opwngrid.xyz/search/a1dcea78603b44e3fc3de09f0b9a0a5e28ffbd2e69429494e0d77bb34a2623ea" target="_blank" class="social-link">[PWNMAIL]</a>
+        </nav>
+    </header>
+
+    <div class="install-banner">
+        <div class="install-box" onclick="copyInstallCmd()">
+            <div class="install-title">INSTALL PWNSTORE</div>
+            <div class="install-subtitle">Click to copy install command</div>
+            <div class="install-action" id="install-btn-text">[COPY]</div>
+        </div>
+        <div class="contribute-link">
+            Want to add your plugin? <a href="https://github.com/wpa-2/pwnagotchi-store" target="_blank">Submit a PR</a>
+        </div>
+    </div>
+
+    <div class="filters">
+        <button class="filter-btn active" onclick="setCategory('All')">All</button>
+        <button class="filter-btn" onclick="setCategory('Display')">Display</button>
+        <button class="filter-btn" onclick="setCategory('GPS')">GPS</button>
+        <button class="filter-btn" onclick="setCategory('Social')">Social</button>
+        <button class="filter-btn" onclick="setCategory('Hardware')">Hardware</button>
+        <button class="filter-btn" onclick="setCategory('Attack')">Attack</button>
+        <button class="filter-btn" onclick="setCategory('System')">System</button>
+    </div>
+
+    <div class="search-container">
+        <input type="text" id="search" placeholder="> Search plugins..." onkeyup="filterPlugins()">
+    </div>
+
+    <div class="grid" id="plugin-grid"></div>
+
+    <div class="modal-overlay" id="modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="modal-title">Plugin Name</h3>
+                <button class="close-x" onclick="closeModal()">×</button>
+            </div>
+            
+            <div class="cmd-row">
+                <div class="cmd-label" style="color:var(--accent)">INSTALL</div>
+                <div class="cmd-box" onclick="copyText(this)">sudo pwnstore install <span id="p-name"></span></div>
+            </div>
+
+            <div class="cmd-row">
+                <div class="cmd-label" style="color:var(--danger)">UNINSTALL</div>
+                <div class="cmd-box" onclick="copyText(this)">sudo pwnstore uninstall <span id="p-name-un"></span></div>
+            </div>
+
+            <div class="cmd-row">
+                <div class="cmd-label" style="color:var(--info)">INFO</div>
+                <div class="cmd-box" onclick="copyText(this)">pwnstore info <span id="p-name-info"></span></div>
+            </div>
+            
+            <p style="text-align:center; color:#555; font-size:0.8rem; margin-top:20px; font-family:var(--font-main);">
+                Click any command to copy it to your clipboard.
+            </p>
+        </div>
+    </div>
+
+    <script>
+        let plugins = [];
+        let currentCategory = 'All';
+
+        fetch('plugins.json').then(r => r.json()).then(d => { plugins = d; renderPlugins(plugins); });
+
+        function renderPlugins(list) {
+            const grid = document.getElementById('plugin-grid');
+            grid.innerHTML = "";
+            list.forEach(p => {
+                let cleanAuthor = p.author.replace(/<[^>]*>/g, "").trim().replace(/[\w\.-]+@[\w\.-]+/g, "").trim().replace(/^[0-9]+\+/, "").trim();
+                if(cleanAuthor.length > 20) cleanAuthor = cleanAuthor.substring(0, 18) + "...";
+                if(cleanAuthor.length === 0 || cleanAuthor === "Unknown") cleanAuthor = "Community";
+
+                let repoUrl = p.download_url;
+                if(repoUrl.includes('/archive/')) repoUrl = repoUrl.split('/archive/')[0];
+                else if(repoUrl.includes('raw.githubusercontent.com')) repoUrl = repoUrl.replace('raw.githubusercontent.com', 'github.com').replace('/main/', '/blob/main/').replace('/master/', '/blob/master/');
+
+                const card = document.createElement('div');
+                card.className = 'card';
+                card.innerHTML = `
+                    <div class="card-header">
+                        <h2>${p.name}</h2>
+                        <a href="${repoUrl}" target="_blank" class="repo-link" title="View Source">[REPO]</a>
+                    </div>
+                    <div class="meta-row">
+                        <div class="author">by ${cleanAuthor}</div>
+                        <div class="badges">
+                            <span class="badge cat">${p.category || 'General'}</span>
+                            <span class="badge">v${p.version}</span>
+                        </div>
+                    </div>
+                    <div class="desc">${p.description}</div>
+                    <div class="install-overlay">
+                        <button class="install-btn" onclick="openModal('${p.name}')">COMMANDS</button>
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        function filterPlugins() {
+            const term = document.getElementById('search').value.toLowerCase();
+            const filtered = plugins.filter(p => {
+                const matchSearch = p.name.toLowerCase().includes(term) || p.description.toLowerCase().includes(term);
+                const matchCat = currentCategory === 'All' || p.category === currentCategory;
+                return matchSearch && matchCat;
+            });
+            renderPlugins(filtered);
+        }
+
+        function setCategory(cat) {
+            currentCategory = cat;
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.classList.remove('active');
+                if(btn.innerText === cat) btn.classList.add('active');
+            });
+            filterPlugins();
+        }
+
+        const modal = document.getElementById('modal');
+        function openModal(name) {
+            document.getElementById('modal-title').innerText = name;
+            
+            document.querySelectorAll('.cmd-box').forEach(box => {
+                box.style.borderColor = "#333";
+                box.style.color = "#ccc";
+                
+                let fullText = box.innerText;
+                let parts = fullText.trim().split(' ');
+                let base = "";
+                
+                if(parts[0] === 'sudo') base = parts[0] + " " + parts[1] + " " + parts[2];
+                else base = parts[0] + " " + parts[1];
+                
+                box.innerText = base + " " + name;
+            });
+
+            modal.style.display = 'flex';
+        }
+        function closeModal() { modal.style.display = 'none'; }
+        
+        // HEADER INSTALL COPY
+        function copyInstallCmd() {
+            const text = "sudo wget -O /usr/local/bin/pwnstore https://raw.githubusercontent.com/wpa-2/pwnagotchi-store/main/pwnstore.py && sudo chmod +x /usr/local/bin/pwnstore";
+            const btn = document.getElementById('install-btn-text');
+            
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(text);
+            } else {
+                const ta = document.createElement("textarea");
+                ta.value = text; ta.style.position="fixed"; ta.style.left="-9999px";
+                document.body.appendChild(ta); ta.select(); document.execCommand('copy');
+                document.body.removeChild(ta);
+            }
+            
+            const originalText = btn.innerText;
+            btn.innerText = "[COPIED!]";
+            setTimeout(() => btn.innerText = originalText, 2000);
+        }
+
+        // MODAL COPY
+        function copyText(element) {
+            const text = element.innerText;
+            element.style.borderColor = "var(--accent)";
+            element.style.color = "#fff";
+            
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(text);
+            } else {
+                const ta = document.createElement("textarea");
+                ta.value = text; ta.style.position="fixed"; ta.style.left="-9999px";
+                document.body.appendChild(ta); ta.select(); document.execCommand('copy');
+                document.body.removeChild(ta);
+            }
+
+            setTimeout(() => {
+                element.style.borderColor = "#333";
+                element.style.color = "#ccc";
+            }, 300);
+        }
+
+        window.onclick = e => { if(e.target == modal) closeModal(); }
+    </script>
+</body>
+</html>
