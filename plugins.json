@@ -21,8 +21,8 @@
   },
   {
     "name": "auto_backup",
-    "version": "2.0",
-    "description": "Backs up files and cleans up old backups to save space.",
+    "version": "2.3",
+    "description": "Backs up Pwnagotchi configuration and data, keeping recent backups.",
     "author": "WPA2",
     "category": "System",
     "origin_type": "zip",
@@ -80,6 +80,16 @@
     "path_inside_zip": "pwny-main/bt-logger.py"
   },
   {
+    "name": "bt-tether-helper",
+    "version": "1.2.1",
+    "description": "Guided Bluetooth tethering with user instructions",
+    "author": "wsvdmeer",
+    "category": "Display",
+    "origin_type": "zip",
+    "download_url": "https://github.com/wsvdmeer/pwnagotchi-plugins//archive/main.zip",
+    "path_inside_zip": "pwnagotchi-plugins-main/bt-tether-helper/bt-tether-helper.py"
+  },
+  {
     "name": "clock",
     "version": "1.0.3",
     "description": "Clock/Calendar for pwnagotchi",
@@ -111,8 +121,8 @@
   },
   {
     "name": "discord",
-    "version": "2.6.0",
-    "description": "Sends Pwnagotchi handshakes (w/ pcap) and reports Last Session stats on boot/mode switch.",
+    "version": "3.0.1",
+    "description": "Enhanced Discord integration: sends handshakes with location data and session reports",
     "author": "WPA2",
     "category": "Social",
     "origin_type": "zip",
@@ -210,6 +220,16 @@
     "path_inside_zip": "pwny-main/fluxmod.py"
   },
   {
+    "name": "git_backup",
+    "version": "2.0.0",
+    "description": "Simple Git backup for Pwnagotchi - mirrors files to GitHub with auto-restore script",
+    "author": "WPA2",
+    "category": "System",
+    "origin_type": "zip",
+    "download_url": "https://github.com/wpa-2/Pwnagotchi-Plugins/archive/master.zip",
+    "path_inside_zip": "Pwnagotchi-Plugins-main/GitHub_Backups/git_backup.py"
+  },
+  {
     "name": "gps_more",
     "version": "1.0.1",
     "description": "Save GPS coordinates whenever it seems reasonable. on epoch to get starting point, handshake to update.",
@@ -281,10 +301,10 @@
   },
   {
     "name": "mad_hatter",
-    "version": "1.2.2",
-    "description": "Universal enhanced plugin for various UPS HATs: Battery indicator, voltage, auto-shutdown, polling, UI customization, error diagnostics, health monitoring, auto-detection, and improved charging detection with calibration.",
-    "author": "AlienMajik",
-    "category": "Hardware",
+    "version": "1.3.4",
+    "description": "Universal UPS plugin \u2013 fixed INA219 voltage reading (byte swap) for Seengreat/Waveshare/etc., accurate ~4.xV now!",
+    "author": "AlienMajik (with community enhancements)",
+    "category": "Display",
     "origin_type": "zip",
     "download_url": "https://github.com/AlienMajik/pwnagotchi_plugins/archive/refs/heads/main.zip",
     "path_inside_zip": "pwnagotchi_plugins-main/mad_hatter.py"
@@ -401,7 +421,7 @@
   },
   {
     "name": "probenpwn",
-    "version": "1.6.0",
+    "version": "1.9.1",
     "description": "No description provided.",
     "author": "AlienMajik",
     "category": "Attack",
@@ -431,7 +451,7 @@
   },
   {
     "name": "pwndroid",
-    "version": "1.1.003",
+    "version": "1.1.004",
     "description": "Plugin for the companion app PwnDroid to display GPS data on the Pwnagotchi screen.",
     "author": "Jayofelony",
     "category": "Display",
@@ -448,6 +468,16 @@
     "origin_type": "zip",
     "download_url": "https://github.com/Sniffleupagus/pwnagotchi_plugins/archive/master.zip",
     "path_inside_zip": "pwnagotchi_plugins-main/rss_voice.py"
+  },
+  {
+    "name": "rtc-datetime",
+    "version": "1.0.0",
+    "description": "Display current time and date",
+    "author": "wsvdmeer",
+    "category": "Display",
+    "origin_type": "zip",
+    "download_url": "https://github.com/wsvdmeer/pwnagotchi-plugins//archive/main.zip",
+    "path_inside_zip": "pwnagotchi-plugins-main/rtc-datetime/rtc-datetime.py"
   },
   {
     "name": "service_uptime",
@@ -531,7 +561,7 @@
   },
   {
     "name": "tailscale",
-    "version": "1.0.0",
+    "version": "1.0.3",
     "description": "A configurable plugin to connect to a Tailscale network and sync handshakes.",
     "author": "WPA2",
     "category": "Display",
@@ -540,20 +570,20 @@
     "path_inside_zip": "Pwnagotchi-Plugins-main/tailscale.py"
   },
   {
-    "name": "Tele_Pi",
-    "version": "1.3.1",
-    "description": "No description provided.",
+    "name": "telepwn",
+    "version": "2.0.0",
+    "description": "Telegram interface for Pwnagotchi - Python 3.13 compatible",
     "author": "WPA2",
-    "category": "Display",
+    "category": "Attack",
     "origin_type": "zip",
     "download_url": "https://github.com/wpa-2/Pwnagotchi-Plugins/archive/master.zip",
-    "path_inside_zip": "Pwnagotchi-Plugins-main/Tele_Pi.py"
+    "path_inside_zip": "Pwnagotchi-Plugins-main/TelePwn/telepwn.py"
   },
   {
     "name": "theylive",
-    "version": "1.2.0",
+    "version": "2.1.0",
     "description": "No description provided.",
-    "author": "discord@rai68",
+    "author": "discord@rai68 (original) - enhanced by AlienMajik",
     "category": "Display",
     "origin_type": "zip",
     "download_url": "https://github.com/AlienMajik/pwnagotchi_plugins/archive/refs/heads/main.zip",
@@ -641,8 +671,8 @@
   },
   {
     "name": "wiglelocator",
-    "version": "2.0.1",
-    "description": "Async WiGLE locator with caching, offline queueing, and Web UI map",
+    "version": "2.2.1",
+    "description": "Async WiGLE locator with proper 429 handling and rate limiting",
     "author": "WPA2",
     "category": "GPS",
     "origin_type": "zip",
@@ -651,8 +681,8 @@
   },
   {
     "name": "wireguard",
-    "version": "1.9",
-    "description": "VPN Sync: Full backup on first run, then incremental only.",
+    "version": "2.1",
+    "description": "VPN Sync: Full backup on first run, then incremental only. (Enhanced Edition - Fixed)",
     "author": "WPA2",
     "category": "Display",
     "origin_type": "zip",
