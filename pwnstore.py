@@ -3,7 +3,7 @@
 PwnStore - The Unofficial Pwnagotchi App Store
 Author: WPA2
 Donations: https://buymeacoffee.com/wpa2
-v3.2.6 - Scanning Noise Reduced
+v3.3.0 - Config Scanner Removed
 '''
 
 import requests
@@ -37,7 +37,7 @@ def banner():
     print(r" / ____/| |/ |/ / / / /___/ / /_/ /_/ / /  /  __/ ")
     print(r"/_/     |__/|__/_/ /_//____/\__/\____/_/    \___/  ")
     print(f"{RESET}")
-    print(f"  {CYAN}v3.2.6{RESET} - Final Build")
+    print(f"  {CYAN}v3.3.0{RESET} - Config Scanner Removed")
     print(f"  Support the dev: {GREEN}https://buymeacoffee.com/wpa2{RESET}\n")
 
 def check_sudo():
@@ -283,9 +283,71 @@ def remove_plugin_config(plugin_name):
         with open(CONFIG_FILE, "w") as f: f.writelines(new_lines)
     except: pass
 
-def main():
+def show_detailed_help():
+    """Show detailed help when -h is used"""
+    print(f"{CYAN}")
+    print(r"    ____                 _____ __                 ")
+    print(r"   / __ \_      ______  / ___// /_____  ________  ")
+    print(r"  / /_/ / | /| / / __ \ \__ \/ __/ __ \/ ___/ _ \ ")
+    print(r" / ____/| |/ |/ / / / /___/ / /_/ /_/ / /  /  __/ ")
+    print(r"/_/     |__/|__/_/ /_//____/\__/\____/_/    \___/  ")
+    print(f"{RESET}\n")
+    print(f"{CYAN}PwnStore - Pwnagotchi Plugin Manager v3.3.0{RESET}\n")
+    
+    print(f"{YELLOW}BROWSE PLUGINS:{RESET}")
+    print(f"  {CYAN}pwnstore list{RESET}                    List all available plugins")
+    print(f"  {CYAN}pwnstore search <query>{RESET}          Search for plugins")
+    print(f"  {CYAN}pwnstore info <name>{RESET}             Show plugin details")
+    print(f"  {CYAN}pwnstore sources{RESET}                 Show repository sources\n")
+    
+    print(f"{YELLOW}MANAGE PLUGINS:{RESET}")
+    print(f"  {GREEN}sudo pwnstore install <name>{RESET}     Install a plugin")
+    print(f"  {RED}sudo pwnstore uninstall <name>{RESET}   Remove a plugin\n")
+    
+    print(f"{YELLOW}MAINTENANCE:{RESET}")
+    print(f"  {GREEN}sudo pwnstore update{RESET}             Update installed plugins")
+    print(f"  {GREEN}sudo pwnstore upgrade{RESET}            Update PwnStore itself\n")
+    
+    print(f"{YELLOW}EXAMPLES:{RESET}")
+    print(f"  {CYAN}pwnstore search discord{RESET}          Find Discord plugins")
+    print(f"  {GREEN}sudo pwnstore install discord{RESET}    Install the discord plugin")
+    print(f"  {CYAN}pwnstore info discord{RESET}            View discord plugin details\n")
+    
+    print(f"Need help?")
+    print(f"  https://github.com/wpa-2/pwnagotchi-store")
+    print(f"  https://t.me/Pwnagotchi_UK_Chat/\n")
+
+def show_minimal_help():
+    """Show minimal help when no args are provided"""
     banner()
-    parser = argparse.ArgumentParser(description="Pwnagotchi Plugin Manager")
+    print(f"{CYAN}Pwnagotchi Plugin Manager{RESET}\n")
+    
+    print(f"commands:")
+    print(f"  {CYAN}list{RESET}              Browse all available plugins")
+    print(f"  {CYAN}sources{RESET}           Show plugin repository sources")
+    print(f"  {CYAN}search{RESET} <query>    Search plugins by name or description")
+    print(f"  {CYAN}info{RESET} <name>       View detailed plugin information")
+    print(f"  {GREEN}install{RESET} <name>    Install a plugin (requires sudo)")
+    print(f"  {RED}uninstall{RESET} <name>  Remove a plugin (requires sudo)")
+    print(f"  {GREEN}upgrade{RESET}           Update PwnStore itself (requires sudo)")
+    print(f"  {GREEN}update{RESET}            Update installed plugins (requires sudo)\n")
+    
+    print(f"Use '{CYAN}pwnstore -h{RESET}' for detailed help with examples\n")
+
+def main():
+    # Check for help flag
+    if '-h' in sys.argv or '--help' in sys.argv:
+        show_detailed_help()
+        sys.exit(0)
+    
+    # Check for no arguments
+    if len(sys.argv) == 1:
+        show_minimal_help()
+        sys.exit(0)
+    
+    # Normal argparse operation
+    banner()
+    parser = argparse.ArgumentParser(description="Pwnagotchi Plugin Manager", add_help=False)
     subparsers = parser.add_subparsers()
     p_list = subparsers.add_parser('list'); p_list.set_defaults(func=list_plugins)
     p_src = subparsers.add_parser('sources'); p_src.set_defaults(func=list_sources)
@@ -297,7 +359,7 @@ def main():
     p_upd = subparsers.add_parser('update'); p_upd.set_defaults(func=update_plugins)
     args = parser.parse_args()
     if hasattr(args, 'func'): args.func(args)
-    else: parser.print_help()
+    else: show_minimal_help()
 
 if __name__ == "__main__":
     main()
