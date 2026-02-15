@@ -2,13 +2,13 @@
 
 **Stop downloading massive ZIP files.** PwnStore is a powerful plugin manager for Pwnagotchi that works both from the **command line** and through a **mobile-friendly web interface**. Browse, install, update, and manage plugins surgically—downloading only the files you need.
 
-[![CLI Version](https://img.shields.io/badge/CLI-v2.5-green)](https://github.com/wpa-2/pwnagotchi-store) [![UI Version](https://img.shields.io/badge/Web_UI-v1.0-blue)](https://github.com/wpa-2/pwnagotchi-store) [![Gallery](https://img.shields.io/badge/Gallery-Live-orange)](https://wpa-2.github.io/pwnagotchi-store/) [![Python](https://img.shields.io/badge/python-3-blue)](https://www.python.org/) [![License](https://img.shields.io/badge/license-GPL3-red)](LICENSE)
+[![CLI Version](https://img.shields.io/badge/CLI-v2.5-green)](https://github.com/wpa-2/pwnagotchi-store) [![UI Version](https://img.shields.io/badge/Web_UI-v1.0-blue)](https://github.com/wpa-2/pwnagotchi-store) [![Gallery](https://img.shields.io/badge/Gallery-Live-orange)](https://pwnstore.org/) [![Python](https://img.shields.io/badge/python-3-blue)](https://www.python.org/) [![License](https://img.shields.io/badge/license-GPL3-red)](LICENSE)
 
 ---
 
-## 📦 Three Ways to Use PwnStore
+## 📦 Four Ways to Use PwnStore
 
-PwnStore gives you **three different interfaces** - use whichever fits your workflow:
+PwnStore gives you **four different interfaces** - use whichever fits your workflow:
 
 ### 🖥️ 1. CLI Tool (Command Line)
 Perfect for **SSH access** and **automation**. The core engine that handles all plugin management.
@@ -26,26 +26,46 @@ Perfect for **mobile users** and **visual browsing**. One-click installs from yo
 
 ### 🌍 3. GitHub Pages Gallery (Public Web Catalog)
 Perfect for **browsing and discovering** plugins before you install. View the full catalog online.
-- Browse at: **[https://wpa-2.github.io/pwnagotchi-store/](https://wpa-2.github.io/pwnagotchi-store/)**
+- Browse at: **[https://pwnstore.org/](https://pwnstore.org/)**
 - View all 66+ plugins with descriptions
 - Filter by category
 - Generate install commands
 - No Pwnagotchi connection needed
 
-**All three use the same plugin registry** - consistent experience everywhere!
+### 🛠️ 4. Interactive Troubleshooting Wizard
+Perfect for **solving problems** and **getting help** when things go wrong. A step-by-step wizard that guides you through common issues.
+- Access at: **[https://pwnstore.org/troubleshoot.html](https://pwnstore.org/troubleshoot.html)**
+- Interactive decision tree - no searching docs
+- Click-to-copy commands
+- Platform-specific guides (Windows/Mac/Linux)
+- Version detection (v2.9.5.4+ vs older)
+- Mobile-friendly interface
+
+![Troubleshoot Wizard](images/c.png)
+
+**Common issues the wizard solves:**
+- 🔌 **Connection Problems** - USB, Ethernet, SSH setup for all platforms
+- ⚙️ **Configuration** - How to edit config.toml, enable plugins, fix syntax errors
+- 🖥️ **Display Issues** - 80+ display types, rotation fixes, hardware troubleshooting
+- 🔌 **Plugin Problems** - Install, update, debug plugins
+- 🔑 **SSH Keyless Setup** - Passwordless access for Windows/Mac/Linux
+- ❓ **General Help** - Commands, file locations, common tips
+
+**All interfaces use the same plugin registry** - consistent experience everywhere!
 
 ### 📊 Quick Comparison
 
-| Feature | CLI Tool | Web UI Plugin | GitHub Pages |
-|---------|----------|---------------|--------------|
-| **Access** | SSH required | Browser on device | Any browser, anywhere |
-| **Install Plugins** | ✅ Yes | ✅ Yes | ❌ View only |
-| **Uninstall Plugins** | ✅ Yes | ✅ Yes | ❌ No |
-| **Browse Catalog** | ✅ Yes | ✅ Yes | ✅ Yes |
-| **Search/Filter** | ✅ Yes | ✅ Yes | ✅ Yes |
-| **Mobile Friendly** | ❌ Terminal only | ✅ Touch optimized | ✅ Responsive |
-| **Works Offline** | ✅ Yes* | ✅ Yes* | ❌ Needs internet |
-| **Pwnagotchi Needed** | ✅ Required | ✅ Required | ❌ Browse without device |
+| Feature | CLI Tool | Web UI Plugin | GitHub Pages | Troubleshoot Wizard |
+|---------|----------|---------------|--------------|---------------------|
+| **Access** | SSH required | Browser on device | Any browser, anywhere | Any browser, anywhere |
+| **Install Plugins** | ✅ Yes | ✅ Yes | ❌ View only | ❌ Guides only |
+| **Uninstall Plugins** | ✅ Yes | ✅ Yes | ❌ No | ❌ No |
+| **Browse Catalog** | ✅ Yes | ✅ Yes | ✅ Yes | ❌ No |
+| **Troubleshoot Issues** | ⚠️ Manual | ⚠️ Manual | ❌ No | ✅ Interactive wizard |
+| **Search/Filter** | ✅ Yes | ✅ Yes | ✅ Yes | ✅ Category-based |
+| **Mobile Friendly** | ❌ Terminal only | ✅ Touch optimized | ✅ Responsive | ✅ Touch optimized |
+| **Works Offline** | ✅ Yes* | ✅ Yes* | ❌ Needs internet | ✅ Standalone HTML |
+| **Pwnagotchi Needed** | ✅ Required | ✅ Required | ❌ Browse without device | ❌ No device needed |
 
 *Requires internet to download plugins, but can list already installed ones offline.
 
@@ -68,6 +88,14 @@ Perfect for **browsing and discovering** plugins before you install. View the fu
 * **🔍 Live Search & Filters:** Find plugins instantly by name, category, or description
 * **✅ Real-Time Status:** Installed plugins show green ✓ badge
 * **💬 Toast Notifications:** Visual feedback for all actions
+
+### Troubleshooting Wizard Features
+* **🐾 Winking Pwny:** Animated mascot guides you through problems
+* **🎯 Smart Decision Trees:** Answer questions to find the right solution
+* **📋 Step-by-Step Guides:** Clear instructions for every issue
+* **📋 Click-to-Copy Commands:** All commands copy with one click
+* **🚨 Critical Warnings:** Red pulsing alerts for common mistakes (apt-get upgrade!)
+* **🖥️ Display Selector:** Dropdown with 80+ display types, auto-generates config
 
 ---
 
@@ -107,6 +135,12 @@ sudo systemctl restart pwnagotchi
 ```
 
 Then open in your browser: `http://<your-pwnagotchi-ip>/plugins/pwnstore_ui/`
+
+### Step 3: Access Troubleshooting (No Install Needed!)
+
+Just visit: **[https://pwnstore.org/troubleshoot.html](https://pwnstore.org/troubleshoot.html)**
+
+Works on any device, any browser. Perfect for when you can't connect to your Pwnagotchi!
 
 ---
 
@@ -178,9 +212,31 @@ Access the store at: `http://<your-pwnagotchi-ip>/plugins/pwnstore_ui/`
 
 ---
 
+### 🛠️ Troubleshooting Wizard
+
+**Access:** **[https://pwnstore.org/troubleshoot.html](https://pwnstore.org/troubleshoot.html)**
+
+Can't connect to your Pwnagotchi? Display not working? Plugin won't install? The troubleshooting wizard has you covered:
+
+**How to Use:**
+1. Visit the wizard in any browser
+2. Click the category that matches your problem
+3. Answer a few simple questions
+4. Get step-by-step instructions
+5. Copy commands with one click
+6. Follow the guide to fix your issue
+
+**Perfect for:**
+- 🆕 **New users** setting up their first Pwnagotchi
+- 🔧 **Troubleshooting** connection, display, or plugin issues
+- 📱 **Mobile users** who need help while working on their device
+- 🤔 **Anyone stuck** who doesn't want to search through docs
+
+---
+
 ## 🌐 Public Web Gallery (Browse Online)
 
-**Access anywhere:** **[https://wpa-2.github.io/pwnagotchi-store/](https://wpa-2.github.io/pwnagotchi-store/)**
+**Access anywhere:** **[https://pwnstore.org/](https://pwnstore.org/)**
 
 This is a **public catalog** you can browse from any device, even without your Pwnagotchi nearby:
 
@@ -192,7 +248,7 @@ This is a **public catalog** you can browse from any device, even without your P
 - 📱 **Access from anywhere** - desktop, tablet, phone (no Pwnagotchi needed)
 
 ### How to Use It:
-1. Visit [wpa-2.github.io/pwnagotchi-store](https://wpa-2.github.io/pwnagotchi-store/)
+1. Visit [pwnstore.org](https://pwnstore.org/)
 2. Browse or search for plugins
 3. Click on a plugin card to see install command
 4. Copy the command (e.g., `sudo pwnstore install discord`)
@@ -222,9 +278,14 @@ This is a **public catalog** you can browse from any device, even without your P
 │     • Calls CLI tool via subprocess                     │
 │                                                         │
 │  3. GitHub Pages Gallery                                │
-│     • Public catalog (wpa-2.github.io/...)             │
+│     • Public catalog (pwnstore.org)                     │
 │     • Browse from anywhere                              │
 │     • View-only, generates commands                     │
+│                                                         │
+│  4. Troubleshooting Wizard                              │
+│     • Public help wizard (pwnstore.org/troubleshoot)    │
+│     • Interactive problem-solving                       │
+│     • No installation required                          │
 │              ↓                                          │
 ├─────────────────────────────────────────────────────────┤
 │           Core Engine (CLI Tool)                        │
@@ -238,7 +299,7 @@ This is a **public catalog** you can browse from any device, even without your P
 │  • 66+ plugins indexed                                  │
 │  • 8 repository sources                                 │
 │  • Auto-updated via GitHub Actions                      │
-│  • Used by all three interfaces                         │
+│  • Used by all interfaces                               │
 │                                                         │
 └─────────────────────────────────────────────────────────┘
 ```
@@ -247,7 +308,8 @@ This is a **public catalog** you can browse from any device, even without your P
 - **CLI Tool** = The engine (does the actual work)
 - **Web UI Plugin** = Steering wheel (calls CLI tool)
 - **GitHub Pages** = Window shopping (browse only, then use CLI/UI to install)
-- All three access the **same plugin registry**
+- **Troubleshoot Wizard** = Roadside assistance (interactive help when stuck)
+- All access the **same plugin registry**
 
 ### The Registry System
 
@@ -313,6 +375,18 @@ Total Plugins Indexed: 66
 
 ## 🆘 Troubleshooting
 
+### Need Help? Use the Interactive Wizard!
+
+**Visit: [https://pwnstore.org/troubleshoot.html](https://pwnstore.org/troubleshoot.html)**
+
+The wizard covers:
+- ✅ Connection issues (Windows/Mac/Linux)
+- ✅ Configuration problems
+- ✅ Display not working
+- ✅ Plugin installation issues
+- ✅ SSH keyless setup
+- ✅ General help and commands
+
 ### CLI Tool Issues
 
 **pwnstore command not found:**
@@ -360,6 +434,13 @@ The latest version includes CSRF protection - make sure you're running the lates
 
 ## 🎯 Use Cases
 
+### For New Users
+**Use: Troubleshooting Wizard** ([pwnstore.org/troubleshoot.html](https://pwnstore.org/troubleshoot.html))
+- Step-by-step setup guides
+- Platform-specific instructions
+- Copy commands with one click
+- Perfect for first-time setup
+
 ### For Casual Users
 **Use: Web UI Plugin** (`/plugins/pwnstore_ui/`)
 - Browse plugins on your phone while connected to Pwnagotchi
@@ -368,7 +449,7 @@ The latest version includes CSRF protection - make sure you're running the lates
 - Perfect for non-technical users
 
 ### For Plugin Discoverers
-**Use: GitHub Pages Gallery** ([wpa-2.github.io/pwnagotchi-store](https://wpa-2.github.io/pwnagotchi-store/))
+**Use: GitHub Pages Gallery** ([pwnstore.org](https://pwnstore.org/))
 - Browse plugins from work/home before buying hardware
 - Plan your plugin setup in advance
 - Share the catalog with friends
@@ -382,10 +463,11 @@ The latest version includes CSRF protection - make sure you're running the lates
 - Full control and debugging info
 
 ### For Developers
-**Use: All Three!**
+**Use: All Four!**
 - Browse GitHub Pages to see what exists
 - Test via CLI for debugging
 - Check Web UI for user experience
+- Use wizard to test help documentation
 - Add your plugins to the store via PR
 
 ---
@@ -394,24 +476,26 @@ The latest version includes CSRF protection - make sure you're running the lates
 
 1. **Update regularly:** `sudo pwnstore update` to get the latest features
 2. **Bookmark the UI:** Add `/plugins/pwnstore_ui/` to your mobile home screen
-3. **Use CLI for debugging:** `pwnstore info <plugin>` shows full technical details
-4. **Check sources:** `pwnstore sources` to see where plugins come from
-5. **Read logs:** `sudo journalctl -u pwnagotchi -f` to watch installations in real-time
+3. **Bookmark the wizard:** Save [pwnstore.org/troubleshoot.html](https://pwnstore.org/troubleshoot.html) for when things break
+4. **Use CLI for debugging:** `pwnstore info <plugin>` shows full technical details
+5. **Check sources:** `pwnstore sources` to see where plugins come from
+6. **Read logs:** `sudo journalctl -u pwnagotchi -f` to watch installations in real-time
 
 ---
 
 ## 📚 Documentation
 
 - **Installation Guide:** See above
-- **Web UI Demo:** [https://wpa-2.github.io/pwnagotchi-store/](https://wpa-2.github.io/pwnagotchi-store/)
-- **GitHub Wiki:** Coming soon
-- **Discord Support:** [Join the Pwnagotchi Discord](https://discord.gg/PgaU3Vp)
+- **Web UI Demo:** [https://pwnstore.org/](https://pwnstore.org/)
+- **Troubleshooting Wizard:** [https://pwnstore.org/troubleshoot.html](https://pwnstore.org/troubleshoot.html)
+- **Discord Support:** [Join the Pwnagotchi Discord](https://discord.gg/jFasAGdTFm)
 
 ---
 
 ## 🌟 Community Resources
 
-- **[Discord]** - https://discord.gg/PgaU3Vp
+- **[Discord]** - https://discord.gg/jFasAGdTFm
+- **[Troubleshoot]** - https://pwnstore.org/troubleshoot.html
 - **[GitHub Wiki]** - https://github.com/jayofelony/pwnagotchi/wiki
 - **[Reddit]** - https://reddit.com/r/pwnagotchi
 - **[Official Site]** - https://pwnagotchi.org
@@ -454,6 +538,7 @@ Special thanks to:
 
 ## 🔮 Roadmap
 
+- [x] Interactive troubleshooting wizard
 - [ ] Plugin dependency resolution
 - [ ] Version pinning support
 - [ ] Local plugin development mode
