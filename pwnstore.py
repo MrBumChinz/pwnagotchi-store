@@ -3,7 +3,7 @@
 PwnStore - The Unofficial Pwnagotchi App Store
 Author: WPA2
 Donations: https://buymeacoffee.com/wpa2
-v3.3.0 - Config Scanner Removed
+v3.3.1 - Per-Plugin Update Control
 '''
 
 import requests
@@ -37,7 +37,7 @@ def banner():
     print(r" / ____/| |/ |/ / / / /___/ / /_/ /_/ / /  /  __/ ")
     print(r"/_/     |__/|__/_/ /_//____/\__/\____/_/    \___/  ")
     print(f"{RESET}")
-    print(f"  {CYAN}v3.3.0{RESET} - Config Scanner Removed")
+    print(f"  {CYAN}v3.3.1{RESET} - Per-Plugin Update Control")
     print(f"  Support the dev: {GREEN}https://buymeacoffee.com/wpa2{RESET}\n")
 
 def check_sudo():
@@ -178,17 +178,30 @@ def show_info(args):
 
 def upgrade_tool(args):
     check_sudo()
-    print(f"[*] Updating PwnStore...")
+    print(f"[*] Checking for PwnStore updates...")
     current_registry = get_registry_url()
     script_url = current_registry.replace("plugins.json", "pwnstore.py")
     try:
         r = requests.get(script_url, timeout=15)
-        if r.status_code != 200 or "#!/usr/bin/env python3" not in r.text: return
+        if r.status_code != 200 or "#!/usr/bin/env python3" not in r.text:
+            print(f"{RED}[!] Could not fetch remote version.{RESET}")
+            return
+
+        remote_ver_match = re.search(r"(v[\d]+\.[\d]+\.[\d]+)", r.text)
+        local_ver_match = re.search(r"(v[\d]+\.[\d]+\.[\d]+)", open(os.path.realpath(__file__)).read())
+        remote_ver = remote_ver_match.group(1) if remote_ver_match else "unknown"
+        local_ver = local_ver_match.group(1) if local_ver_match else "unknown"
+
+        if remote_ver == local_ver:
+            print(f"{GREEN}[+] PwnStore is already up to date ({local_ver}).{RESET}")
+            return
+
         current_file = os.path.realpath(__file__)
         with open(current_file, 'w') as f: f.write(r.text)
         os.chmod(current_file, 0o755)
-        print(f"{GREEN}[+] Updated!{RESET}")
-    except: print(f"{RED}[!] Update failed.{RESET}")
+        print(f"{GREEN}[+] PwnStore updated {local_ver} -> {remote_ver}{RESET}")
+        print(f"{CYAN}Restart your session to use the new version.{RESET}")
+    except Exception as e: print(f"{RED}[!] Update failed: {e}{RESET}")
 
 def update_plugins(args):
     check_sudo()
@@ -203,20 +216,46 @@ def update_plugins(args):
             local_ver = get_local_version(os.path.join(CUSTOM_PLUGIN_DIR, filename))
             remote_ver = remote_data['version']
             if compare_versions(remote_ver, local_ver) > 0:
-                updates_found.append({"name": plugin_name, "local": local_ver, "remote": remote_ver})
+                updates_found.append({"name": plugin_name, "local": local_ver, "remote": remote_ver, "data": remote_data})
     if not updates_found:
         print(f"{GREEN}[+] Everything current.{RESET}")
         return
-    print(f"\n{YELLOW}Updates available:{RESET}")
-    for u in updates_found: print(f"  • {CYAN}{u['name']}{RESET}: v{u['local']} -> v{u['remote']}")
-    print(f"\n{YELLOW}Upgrade these {len(updates_found)} plugins? (Y/n){RESET}")
-    try: choice = input().lower()
-    except: return
-    if choice == 'y' or choice == '':
-        for u in updates_found:
+
+    print(f"\n{YELLOW}Found {len(updates_found)} update(s):{RESET}\n")
+    updated = []
+    skipped = []
+
+    for u in updates_found:
+        repo_url = u['data'].get('download_url', '')
+        if '/archive/' in repo_url:
+            repo_url = repo_url.split('/archive/')[0]
+
+        print(f"  {CYAN}{u['name']}{RESET}: v{u['local']} -> {GREEN}v{u['remote']}{RESET}")
+        print(f"  {YELLOW}Changelog: {repo_url}{RESET}")
+        print(f"  Upgrade? (Y/n/s to skip all) ", end='', flush=True)
+
+        try:
+            choice = input().strip().lower()
+        except:
+            break
+
+        if choice == 's':
+            print(f"\n{YELLOW}[!] Skipping remaining updates.{RESET}")
+            break
+        elif choice in ('n',):
+            print(f"  {YELLOW}Skipped.{RESET}\n")
+            skipped.append(u['name'])
+            continue
+        else:
             class MockArgs: name = u['name']
             install_plugin(MockArgs())
-        print(f"\n{GREEN}[+] Complete! Restart Pwnagotchi.{RESET}")
+            print(f"  {CYAN}Check for config changes: {repo_url}{RESET}\n")
+            updated.append(u['name'])
+
+    print(f"\n{GREEN}[+] Updated: {len(updated)} plugin(s){RESET}" if updated else "")
+    print(f"{YELLOW}[!] Skipped: {len(skipped)} plugin(s){RESET}" if skipped else "")
+    if updated:
+        print(f"{GREEN}[+] Restart Pwnagotchi to activate changes.{RESET}")
 
 def install_plugin(args):
     check_sudo()
@@ -292,7 +331,7 @@ def show_detailed_help():
     print(r" / ____/| |/ |/ / / / /___/ / /_/ /_/ / /  /  __/ ")
     print(r"/_/     |__/|__/_/ /_//____/\__/\____/_/    \___/  ")
     print(f"{RESET}\n")
-    print(f"{CYAN}PwnStore - Pwnagotchi Plugin Manager v3.3.0{RESET}\n")
+    print(f"{CYAN}PwnStore - Pwnagotchi Plugin Manager v3.3.1{RESET}\n")
     
     print(f"{YELLOW}BROWSE PLUGINS:{RESET}")
     print(f"  {CYAN}pwnstore list{RESET}                    List all available plugins")
