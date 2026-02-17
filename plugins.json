@@ -81,7 +81,7 @@
   },
   {
     "name": "bt-tether-helper",
-    "version": "1.2.1",
+    "version": "1.2.2",
     "description": "Guided Bluetooth tethering with user instructions",
     "author": "wsvdmeer",
     "category": "Display",
@@ -510,16 +510,6 @@
     "path_inside_zip": "pwnagotchi_plugins-main/snoopr.py"
   },
   {
-    "name": "snooprbeta",
-    "version": "2.4.0",
-    "description": "Enhanced wardriving plugin with robust GPS/Bluetooth/Wi-Fi and SkyHigh integration, including aircraft tracking, Wi-Fi client detection, paths for snoopers, triangulation for precise locations, and exports.",
-    "author": "AlienMajik",
-    "category": "Display",
-    "origin_type": "zip",
-    "download_url": "https://github.com/AlienMajik/pwnagotchi_plugins/archive/refs/heads/main.zip",
-    "path_inside_zip": "pwnagotchi_plugins-main/snooprbeta.py"
-  },
-  {
     "name": "sorted-password-list",
     "version": "3.0.0",
     "description": "List cracked passwords and show count of them.",
@@ -561,7 +551,7 @@
   },
   {
     "name": "tailscale",
-    "version": "1.0.3",
+    "version": "1.0.5",
     "description": "A configurable plugin to connect to a Tailscale network and sync handshakes.",
     "author": "WPA2",
     "category": "Display",
@@ -681,7 +671,7 @@
   },
   {
     "name": "wireguard",
-    "version": "2.1",
+    "version": "2.2",
     "description": "VPN Sync: Full backup on first run, then incremental only. (Enhanced Edition - Fixed)",
     "author": "WPA2",
     "category": "Display",
