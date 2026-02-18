@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PwnConfig - Pwnagotchi Config Generator</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>body{margin:0;background:#09090b;}</style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useCallback, useMemo, useEffect } = React;
+    if (!window.storage) {
+      window.storage = {
+        async get(key) { const v = localStorage.getItem("pwnconfig_" + key); return v ? { key, value: v } : null; },
+        async set(key, value) { localStorage.setItem("pwnconfig_" + key, value); return { key, value }; },
+        async delete(key) { localStorage.removeItem("pwnconfig_" + key); return { key, deleted: true }; },
+        async list(prefix) { const keys = []; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k.startsWith("pwnconfig_" + (prefix || ""))) keys.push(k.replace("pwnconfig_", "")); } return { keys }; }
+      };
+    }
+
+
+// ── TOML parser (simple, handles defaults.toml structure) ───────────
+function parseToml(text) {
+  const result = {};
+  let currentSection = null;
+  const lines = text.split("\n");
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line || line.startsWith("#")) continue;
+    const secMatch = line.match(/^\[([^\]]+)\]$/);
+    if (secMatch) {
+      currentSection = secMatch[1];
+      const parts = currentSection.split(".");
+      let obj = result;
+      for (const p of parts) {
+        if (!obj[p]) obj[p] = {};
+        obj = obj[p];
+      }
+      continue;
+    }
+    if (currentSection) {
+      const kvMatch = line.match(/^([a-zA-Z0-9_\-]+)\s*=\s*(.+)$/);
+      if (kvMatch) {
+        const key = kvMatch[1];
+        let val = kvMatch[2].trim();
+        // Remove inline comments
+        if (val.includes("#") && !val.startsWith('"') && !val.startsWith("[")) {
+          val = val.split("#")[0].trim();
+        }
+        // Parse value
+        if (val === "true") val = true;
+        else if (val === "false") val = false;
+        else if (val.startsWith('"') && val.endsWith('"')) val = val.slice(1, -1);
+        else if (val.startsWith("[") && val.endsWith("]")) {
+          // Simple array - skip complex multiline
+          try {
+            val = JSON.parse(val.replace(/'/g, '"'));
+          } catch (e) { val = []; }
+        } else if (!isNaN(Number(val)) && val !== "") val = Number(val);
+        // Set in result
+        const parts = currentSection.split(".");
+        let obj = result;
+        for (const p of parts) obj = obj[p];
+        obj[key] = val;
+      }
+    }
+  }
+  return result;
+}
+
+function extractPlugins(parsed) {
+  const plugins = {};
+  if (parsed.main && parsed.main.plugins) {
+    Object.keys(parsed.main.plugins).forEach((name) => {
+      plugins[name] = { ...parsed.main.plugins[name] };
+    });
+  }
+  return plugins;
+}
+
+// ── Plugin descriptions (metadata overlay) ──────────────────────────
+const PLUGIN_META = {
+  "auto-tune": { group: "Core", desc: "Dynamic channel selection (replaces AI)" },
+  "fix_services": { group: "Core", desc: "Auto-recover from firmware crashes and blindbug" },
+  "cache": { group: "Core", desc: "Local handshake caching" },
+  "grid": { group: "Core", desc: "Mesh peer discovery and reporting" },
+  "webcfg": { group: "Core", desc: "Web-based config editor on port 8080" },
+  "auto_backup": { group: "Maintenance", desc: "Automatic backups" },
+  "auto-update": { group: "Maintenance", desc: "Check GitHub for updates" },
+  "session-stats": { group: "Maintenance", desc: "Track per-session statistics" },
+  "memtemp": { group: "Maintenance", desc: "Memory/temperature on display" },
+  "logtail": { group: "Maintenance", desc: "View logs via web UI" },
+  "gps": { group: "GPS", desc: "GPS module for location tagging" },
+  "gps_listener": { group: "GPS", desc: "Listen for GPS from pwndroid" },
+  "webgpsmap": { group: "GPS", desc: "Map view of captured handshakes" },
+  "wpa-sec": { group: "Cracking", desc: "Upload to wpa-sec.stanev.org" },
+  "ohcapi": { group: "Cracking", desc: "Upload to onlinehashcrack.com" },
+  "pwncrack": { group: "Cracking", desc: "PwnCrack cracking service" },
+  "wigle": { group: "WiGLE", desc: "Upload to wigle.net wardriving DB" },
+  "gdrivesync": { group: "Cloud", desc: "Sync to Google Drive" },
+  "pisugarx": { group: "Hardware", desc: "PiSugar battery management" },
+  "ups_hat_c": { group: "Hardware", desc: "UPS HAT C battery management" },
+  "ups_lite": { group: "Hardware", desc: "UPS-Lite battery" },
+  "bt-tether": { group: "hidden", desc: "" },
+  "gpio_buttons": { group: "Hardware", desc: "GPIO button controls" },
+  "pwndroid": { group: "Hardware", desc: "Pwndroid Android companion" },
+};
+
+// Sensitive keys we should mask or handle carefully
+const SECRET_KEYS = ["api_key", "key", "token", "password"];
+
+// ── Display data ────────────────────────────────────────────────────
+const DISPLAYS = {
+  "Waveshare E-Paper 2.13in": [
+    { id: "waveshare_1", label: "v1 (original)" },
+    { id: "waveshare_2", label: "v2" },
+    { id: "waveshare_3", label: "v3" },
+    { id: "waveshare_4", label: "v4 - Most Common" },
+    { id: "waveshare2in13b_v3", label: "B v3 (tricolour)" },
+    { id: "waveshare2in13b_v4", label: "B v4 (tricolour)" },
+    { id: "waveshare2in13bc", label: "BC (yellow)" },
+    { id: "waveshare2in13d", label: "D (flexible)" },
+    { id: "waveshare2in13g", label: "G (4-colour)" }
+  ],
+  "Waveshare E-Paper Small": [
+    { id: "waveshare1in02", label: "1.02in" }, { id: "waveshare1in54", label: "1.54in" },
+    { id: "waveshare1in54_v2", label: "1.54in v2" }, { id: "waveshare1in54b", label: "1.54in B" },
+    { id: "waveshare1in54b_v2", label: "1.54in B v2" }, { id: "waveshare1in54c", label: "1.54in C" },
+    { id: "waveshare1in64g", label: "1.64in G" }
+  ],
+  "Waveshare E-Paper 2.3-2.9in": [
+    { id: "waveshare2in36g", label: "2.36in G" }, { id: "waveshare2in66", label: "2.66in" },
+    { id: "waveshare2in66b", label: "2.66in B" }, { id: "waveshare2in66g", label: "2.66in G" },
+    { id: "waveshare2in7", label: "2.7in" }, { id: "waveshare2in7_v2", label: "2.7in v2" },
+    { id: "waveshare2in7b_v2", label: "2.7in B v2" }, { id: "waveshare2in9", label: "2.9in" },
+    { id: "waveshare2in9_v2", label: "2.9in v2" }, { id: "waveshare2in9b_v3", label: "2.9in B v3" },
+    { id: "waveshare2in9b_v4", label: "2.9in B v4" }, { id: "waveshare2in9bc", label: "2.9in BC" },
+    { id: "waveshare2in9d", label: "2.9in D" }, { id: "weact2in9", label: "WeAct 2.9in" }
+  ],
+  "Waveshare E-Paper 3in+": [
+    { id: "waveshare3in0g", label: "3.0in G" }, { id: "waveshare3in52", label: "3.52in" },
+    { id: "waveshare3in7", label: "3.7in" }, { id: "waveshare4in01f", label: "4.01in F" },
+    { id: "waveshare4in2", label: "4.2in" }, { id: "waveshare4in2_v2", label: "4.2in v2" },
+    { id: "waveshare4in2b_v2", label: "4.2in B v2" }, { id: "waveshare4in2bc", label: "4.2in BC" },
+    { id: "waveshare4in26", label: "4.26in" }, { id: "waveshare4in37g", label: "4.37in G" },
+    { id: "waveshare5in65f", label: "5.65in F" }, { id: "waveshare5in79", label: "5.79in" },
+    { id: "waveshare5in83", label: "5.83in" }, { id: "waveshare5in83_v2", label: "5.83in v2" },
+    { id: "waveshare7in3f", label: "7.3in F" }, { id: "waveshare7in3g", label: "7.3in G" },
+    { id: "waveshare7in5", label: "7.5in" }, { id: "waveshare7in5_v2", label: "7.5in v2" },
+    { id: "waveshare7in5_HD", label: "7.5in HD" }, { id: "waveshare13in3k", label: "13.3in K" }
+  ],
+  "Waveshare LCD": [
+    { id: "wavesharelcd0in96", label: "0.96in" }, { id: "wavesharelcd1in14", label: "1.14in" },
+    { id: "wavesharelcd1in3", label: "1.3in" }, { id: "wavesharelcd1in47", label: "1.47in" },
+    { id: "wavesharelcd1in54", label: "1.54in" }, { id: "wavesharelcd1in69", label: "1.69in" },
+    { id: "wavesharelcd1in8", label: "1.8in" }, { id: "wavesharelcd1in9", label: "1.9in" },
+    { id: "wavesharelcd2in0", label: "2.0in" }, { id: "wavesharelcd2in4", label: "2.4in" },
+    { id: "waveshare144lcd", label: "1.44in" }, { id: "waveshare35lcd", label: "3.5in" },
+    { id: "waveshareoledlcd", label: "OLED LCD" }, { id: "waveshareoledlcdvert", label: "OLED Vert" }
+  ],
+  "Pimoroni / Adafruit / Other": [
+    { id: "inky", label: "Inky pHAT v1" }, { id: "inkyv2", label: "Inky pHAT v2" },
+    { id: "displayhatmini", label: "Display HAT Mini" }, { id: "pirateaudio", label: "Pirate Audio" },
+    { id: "gfxhat", label: "GFX HAT" }, { id: "adafruit2in13_v3", label: "Adafruit 2.13in v3" },
+    { id: "minipitft", label: "Mini PiTFT" }, { id: "minipitft2", label: "Mini PiTFT 2" },
+    { id: "pitft", label: "PiTFT" }, { id: "tftbonnet", label: "TFT Bonnet" },
+    { id: "dfrobot_1", label: "DFRobot v1" }, { id: "dfrobot_2", label: "DFRobot v2" },
+    { id: "papirus", label: "Papirus" }, { id: "oledhat", label: "OLED HAT" },
+    { id: "lcdhat", label: "LCD HAT" }, { id: "i2coled", label: "I2C OLED" },
+    { id: "argonpod", label: "Argon Pod" }, { id: "dummydisplay", label: "Dummy (headless)" }
+  ]
+};
+
+const LANGS = [
+  { id: "en", label: "English" }, { id: "de", label: "Deutsch" },
+  { id: "nl", label: "Nederlands" }, { id: "fr", label: "Francais" },
+  { id: "es", label: "Espanol" }, { id: "it", label: "Italiano" },
+  { id: "ja", label: "Japanese" }, { id: "zh", label: "Chinese" },
+  { id: "ko", label: "Korean" }, { id: "pl", label: "Polski" },
+  { id: "ru", label: "Russian" }, { id: "sv", label: "Svenska" }
+];
+
+const STEP_NAMES = ["Identity", "Display", "Whitelist", "Personality", "Plugins", "Web UI", "Generate"];
+const CHANNELS_2G = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
+const CHANNELS_5G = [36, 40, 44, 48, 52, 56, 60, 64, 100, 104, 108, 112, 116, 120, 124, 128, 132, 136, 140, 144, 149, 153, 157, 161, 165];
+
+const WHITELIST_EXAMPLES = [
+  { value: "MyHomeWiFi", desc: "SSID - exact network name" },
+  { value: "aa:bb:cc:dd:ee:ff", desc: "BSSID - full MAC address of a router" },
+  { value: "aa:bb:cc", desc: "Partial MAC - matches any AP starting with this prefix" },
+  { value: "iPhone", desc: "SSID - your phone hotspot name" }
+];
+
+const GITHUB_RAW_URL = "https://raw.githubusercontent.com/jayofelony/pwnagotchi/noai/pwnagotchi/defaults.toml";
+const CACHE_KEY = "pwnconfig-defaults";
+const CACHE_MAX_AGE = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+// ── TOML generator ──────────────────────────────────────────────────
+function buildToml(cfg, pluginDefs) {
+  const L = [];
+  L.push("# Pwnagotchi config.toml");
+  L.push("# Generated by PwnConfig | wpa-2");
+  L.push("# Place on /boot/firmware/ partition or at /etc/pwnagotchi/config.toml");
+  L.push("");
+  L.push("[main]");
+  L.push('name = "' + (cfg.name || "pwnagotchi") + '"');
+  L.push('lang = "' + cfg.lang + '"');
+  L.push('iface = "wlan0mon"');
+  L.push('mon_start_cmd = "/usr/bin/monstart"');
+  L.push('mon_stop_cmd = "/usr/bin/monstop"');
+  L.push("mon_max_blind_epochs = 5");
+  L.push("no_restart = false");
+  if (cfg.whitelist.length > 0) {
+    L.push("whitelist = [");
+    cfg.whitelist.forEach((w) => L.push('    "' + w + '",'));
+    L.push("]");
+  } else { L.push("whitelist = []"); }
+  L.push('confd = "/etc/pwnagotchi/conf.d/"');
+  L.push('custom_plugins = "/usr/local/share/pwnagotchi/custom-plugins/"');
+  L.push("");
+
+  // Plugins
+  Object.keys(cfg.plugins).forEach((name) => {
+    const opts = cfg.plugins[name];
+    L.push("[main.plugins." + name + "]");
+    Object.keys(opts).forEach((k) => {
+      const v = opts[k];
+      if (typeof v === "string") L.push(k + ' = "' + v + '"');
+      else if (typeof v === "boolean") L.push(k + " = " + v);
+      else if (typeof v === "number") L.push(k + " = " + v);
+    });
+    L.push("");
+  });
+
+  // Log
+  L.push("[main.log]");
+  L.push('path = "/etc/pwnagotchi/log/pwnagotchi.log"');
+  L.push('path-debug = "/etc/pwnagotchi/log/pwnagotchi-debug.log"');
+  L.push(""); L.push("[main.log.rotation]"); L.push("enabled = true"); L.push('size = "10M"'); L.push("");
+
+  // Personality
+  const p = cfg.personality;
+  L.push("[personality]");
+  L.push("advertise = " + p.advertise); L.push("deauth = " + p.deauth); L.push("associate = " + p.associate);
+  L.push("channels = " + (p.channels.length > 0 ? "[" + p.channels.join(", ") + "]" : "[]"));
+  L.push("min_rssi = " + p.min_rssi); L.push("ap_ttl = " + p.ap_ttl); L.push("sta_ttl = " + p.sta_ttl);
+  L.push("recon_time = " + p.recon_time); L.push("max_inactive_scale = 2"); L.push("recon_inactive_multiplier = 2");
+  L.push("hop_recon_time = " + p.hop_recon_time); L.push("min_recon_time = " + p.min_recon_time);
+  L.push("max_interactions = " + p.max_interactions); L.push("max_misses_for_recon = " + p.max_misses_for_recon);
+  L.push("excited_num_epochs = " + p.excited_num_epochs); L.push("bored_num_epochs = " + p.bored_num_epochs);
+  L.push("sad_num_epochs = " + p.sad_num_epochs); L.push("bond_encounters_factor = " + p.bond_encounters_factor);
+  L.push("throttle_a = " + p.throttle_a); L.push("throttle_d = " + p.throttle_d); L.push("");
+
+  // UI
+  L.push("[ui]"); L.push("invert = " + cfg.invert); L.push("cursor = true"); L.push("fps = 0.0"); L.push("");
+  L.push("[ui.font]"); L.push('name = "DejaVuSansMono"'); L.push("size_offset = 0"); L.push("");
+  L.push("[ui.web]"); L.push("enabled = true"); L.push('address = "::"');
+  L.push("auth = " + cfg.web.auth);
+  L.push('username = "' + cfg.web.username + '"'); L.push('password = "' + cfg.web.password + '"');
+  L.push('origin = ""'); L.push("port = 8080"); L.push('on_frame = ""'); L.push("");
+  L.push("[ui.display]"); L.push("enabled = " + cfg.display.enabled);
+  L.push("rotation = " + cfg.display.rotation); L.push('type = "' + cfg.display.type + '"'); L.push("");
+
+  // Bettercap
+  L.push("[bettercap]"); L.push('handshakes = "/home/pi/handshakes"'); L.push("silence = [");
+  ["ble.device.new","ble.device.lost","ble.device.service.discovered","ble.device.characteristic.discovered",
+   "ble.device.disconnected","ble.device.connected","ble.connection.timeout","wifi.client.new",
+   "wifi.client.lost","wifi.client.probe","wifi.ap.new","wifi.ap.lost","mod.started"
+  ].forEach((s) => L.push('    "' + s + '",'));
+  L.push("]"); L.push("");
+
+  // FS
+  L.push("[fs.memory]"); L.push("enabled = true"); L.push("");
+  L.push("[fs.memory.mounts.log]"); L.push("enabled = true"); L.push('mount = "/etc/pwnagotchi/log/"');
+  L.push('size = "50M"'); L.push("sync = 60"); L.push("zram = true"); L.push("rsync = true"); L.push("");
+  L.push("[fs.memory.mounts.data]"); L.push("enabled = true"); L.push('mount = "/var/tmp/pwnagotchi"');
+  L.push('size = "10M"'); L.push("sync = 3600"); L.push("zram = true"); L.push("rsync = true");
+
+  return L.join("\n") + "\n";
+}
+
+// ── Components ──────────────────────────────────────────────────────
+function Toggle({ checked, onChange, label, desc }) {
+  return (
+    <div className="flex items-start gap-3 py-2 cursor-pointer select-none" onClick={() => onChange(!checked)}>
+      <div className="flex-shrink-0 mt-0.5">
+        <div className={"w-11 h-6 rounded-full transition-all duration-200 relative " + (checked ? "bg-emerald-500" : "bg-zinc-700")}>
+          <div className={"absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-md transition-all duration-200 " + (checked ? "left-5" : "left-0.5")} />
+        </div>
+      </div>
+      <div className="flex-1 min-w-0">
+        <span className="text-zinc-200 text-sm font-medium">{label}</span>
+        {desc && <p className="text-zinc-500 text-xs mt-0.5">{desc}</p>}
+      </div>
+    </div>
+  );
+}
+function TextInput({ label, value, onChange, placeholder, type, desc, mono }) {
+  return (
+    <div className="space-y-1">
+      <label className="text-zinc-400 text-xs uppercase tracking-wider font-semibold">{label}</label>
+      <input type={type || "text"} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
+        className={"w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/30 transition-all" + (mono ? " font-mono" : "")} />
+      {desc && <p className="text-zinc-600 text-xs">{desc}</p>}
+    </div>
+  );
+}
+function NumInput({ label, value, onChange, min, max, step, desc }) {
+  return (
+    <div className="space-y-1">
+      {label && <label className="text-zinc-400 text-xs uppercase tracking-wider font-semibold">{label}</label>}
+      <input type="number" value={value} onChange={(e) => onChange(Number(e.target.value))} min={min} max={max} step={step || 1}
+        className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 font-mono focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/30 transition-all" />
+      {desc && <p className="text-zinc-600 text-xs">{desc}</p>}
+    </div>
+  );
+}
+function SelectBox({ label, value, onChange, options, desc }) {
+  return (
+    <div className="space-y-1">
+      <label className="text-zinc-400 text-xs uppercase tracking-wider font-semibold">{label}</label>
+      <select value={value} onChange={(e) => onChange(e.target.value)}
+        className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-emerald-500 transition-all">
+        {options.map((o) => <option key={typeof o === "string" ? o : o.id} value={typeof o === "string" ? o : o.id}>{typeof o === "string" ? o : o.label}</option>)}
+      </select>
+      {desc && <p className="text-zinc-600 text-xs">{desc}</p>}
+    </div>
+  );
+}
+function Section({ title }) {
+  return <p className="text-zinc-500 text-xs uppercase tracking-wider font-bold px-1 pt-3 pb-1 border-t border-zinc-800/50 mt-2">{title}</p>;
+}
+
+function Tip({ label, tip, children }) {
+  const [show, setShow] = useState(false);
+  return (
+    <div className="relative"
+      onMouseEnter={() => setShow(true)} onMouseLeave={() => setShow(false)}
+      onTouchStart={() => setShow(!show)}>
+      <div className="flex items-center gap-1">
+        <label className="text-zinc-400 text-xs uppercase tracking-wider font-semibold">{label}</label>
+        <span className="text-zinc-600 text-xs cursor-help select-none">(?)</span>
+      </div>
+      {show && (
+        <div className="absolute z-50 bottom-full left-0 mb-2 w-64 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 shadow-xl">
+          <p className="text-zinc-300 text-xs leading-relaxed">{tip}</p>
+          <div className="absolute top-full left-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-zinc-700" />
+        </div>
+      )}
+      {children}
+    </div>
+  );
+}
+
+// ── Main App ────────────────────────────────────────────────────────
+function PwnConfig() {
+  const [step, setStep] = useState(0);
+  const [displaySearch, setDisplaySearch] = useState("");
+  const [expandedGroup, setExpandedGroup] = useState(null);
+  const [whitelistInput, setWhitelistInput] = useState("");
+  const [copied, setCopied] = useState(false);
+  const [confirmRestart, setConfirmRestart] = useState(false);
+  const [writeStatus, setWriteStatus] = useState(null); // null | "writing" | "done" | "error" | "unsupported"
+  const [showPwnstore, setShowPwnstore] = useState(false);
+  const [syncStatus, setSyncStatus] = useState("loading");
+  const [lastSynced, setLastSynced] = useState(null);
+  const [remotePlugins, setRemotePlugins] = useState(null);
+
+  const [cfg, setCfg] = useState({
+    name: "", lang: "en",
+    display: { enabled: false, type: "waveshare_4", rotation: 180 },
+    invert: false, whitelist: [],
+    personality: {
+      advertise: true, deauth: true, associate: true, channels: [],
+      min_rssi: -200, ap_ttl: 120, sta_ttl: 300, recon_time: 30,
+      hop_recon_time: 10, min_recon_time: 5, max_interactions: 3,
+      max_misses_for_recon: 5, excited_num_epochs: 10, bored_num_epochs: 15,
+      sad_num_epochs: 25, bond_encounters_factor: 20000, throttle_a: 0.4, throttle_d: 0.9
+    },
+    plugins: {},
+    web: { auth: false, username: "changeme", password: "changeme" }
+  });
+
+  // ── Fetch + cache defaults.toml from GitHub ────────────────────────
+  useEffect(() => {
+    async function loadDefaults() {
+      // Try cache first
+      try {
+        const cached = await window.storage.get(CACHE_KEY);
+        if (cached) {
+          const data = JSON.parse(cached.value);
+          if (Date.now() - data.ts < CACHE_MAX_AGE) {
+            applyRemotePlugins(data.plugins);
+            setLastSynced(new Date(data.ts));
+            setSyncStatus("cached");
+            return;
+          }
+        }
+      } catch (e) { /* no cache */ }
+
+      // Fetch from GitHub
+      await fetchFromGitHub();
+    }
+    loadDefaults();
+  }, []);
+
+  async function fetchFromGitHub() {
+    setSyncStatus("fetching");
+    try {
+      const resp = await fetch(GITHUB_RAW_URL);
+      if (!resp.ok) throw new Error("HTTP " + resp.status);
+      const text = await resp.text();
+      const parsed = parseToml(text);
+      const plugins = extractPlugins(parsed);
+
+      // Cache it
+      const now = Date.now();
+      try {
+        await window.storage.set(CACHE_KEY, JSON.stringify({ plugins, ts: now }));
+      } catch (e) { /* storage might not be available */ }
+
+      applyRemotePlugins(plugins);
+      setLastSynced(new Date(now));
+      setSyncStatus("synced");
+    } catch (e) {
+      console.warn("Could not fetch defaults.toml, using built-in:", e);
+      applyFallbackPlugins();
+      setSyncStatus("offline");
+    }
+  }
+
+  function applyRemotePlugins(plugins) {
+    setRemotePlugins(plugins);
+    setCfg((prev) => {
+      if (Object.keys(prev.plugins).length > 0) return prev;
+      const next = { ...prev, plugins: {} };
+      Object.keys(plugins).forEach((name) => {
+        if (name === "bt-tether") return; // skip, being replaced
+        next.plugins[name] = { ...plugins[name] };
+        // Clear secret defaults
+        Object.keys(next.plugins[name]).forEach((k) => {
+          if (SECRET_KEYS.includes(k) && typeof next.plugins[name][k] === "string") {
+            next.plugins[name][k] = "";
+          }
+        });
+      });
+      return next;
+    });
+  }
+
+  function applyFallbackPlugins() {
+    const fallback = {
+      "auto-tune": { enabled: true },
+      "auto_backup": { enabled: true, backup_location: "/home/pi/backups" },
+      "auto-update": { enabled: true, install: true, interval: 1 },
+      "fix_services": { enabled: true }, "cache": { enabled: true },
+      "grid": { enabled: true, report: true }, "webcfg": { enabled: true },
+      "gps": { enabled: false, speed: 19200, device: "/dev/ttyUSB0" },
+      "gps_listener": { enabled: false },
+      "session-stats": { enabled: false, save_directory: "/var/tmp/pwnagotchi/sessions/" },
+      "memtemp": { enabled: false, scale: "celsius", orientation: "horizontal" },
+      "wpa-sec": { enabled: false, api_key: "", api_url: "https://wpa-sec.stanev.org", download_results: false, show_pwd: false },
+      "wigle": { enabled: false, api_key: "", donate: false, timeout: 30 },
+      "pisugarx": { enabled: false, lowpower_shutdown: true, lowpower_shutdown_level: 10 },
+      "webgpsmap": { enabled: false },
+      "ohcapi": { enabled: false, api_key: "", receive_email: "yes" },
+      "logtail": { enabled: false, "max-lines": 10000 },
+      "pwncrack": { enabled: false, key: "" },
+      "gdrivesync": { enabled: false, backup_folder: "PwnagotchiBackups", interval: 1 }
+    };
+    applyRemotePlugins(fallback);
+  }
+
+  // ── State helpers ─────────────────────────────────────────────────
+  const update = useCallback((path, val) => {
+    setCfg((prev) => {
+      const next = JSON.parse(JSON.stringify(prev));
+      const parts = path.split("."); let obj = next;
+      for (let i = 0; i < parts.length - 1; i++) obj = obj[parts[i]];
+      obj[parts[parts.length - 1]] = val; return next;
+    });
+  }, []);
+
+  const updatePlug = useCallback((name, key, val) => {
+    setCfg((prev) => {
+      const next = JSON.parse(JSON.stringify(prev));
+      next.plugins[name][key] = val; return next;
+    });
+  }, []);
+
+  const addWL = () => {
+    const val = whitelistInput.trim();
+    if (val && cfg.whitelist.indexOf(val) === -1) { update("whitelist", cfg.whitelist.concat([val])); setWhitelistInput(""); }
+  };
+
+  const toggleCh = (ch) => {
+    const cur = cfg.personality.channels;
+    update("personality.channels", cur.indexOf(ch) >= 0 ? cur.filter((c) => c !== ch) : cur.concat([ch]).sort((a, b) => a - b));
+  };
+
+  const doRestart = () => {
+    if (!confirmRestart) { setConfirmRestart(true); setTimeout(() => setConfirmRestart(false), 3000); return; }
+    setConfirmRestart(false);
+    setCfg((prev) => ({
+      name: "", lang: "en", display: { enabled: false, type: "waveshare_4", rotation: 180 },
+      invert: false, whitelist: [],
+      personality: { advertise: true, deauth: true, associate: true, channels: [], min_rssi: -200, ap_ttl: 120, sta_ttl: 300, recon_time: 30, hop_recon_time: 10, min_recon_time: 5, max_interactions: 3, max_misses_for_recon: 5, excited_num_epochs: 10, bored_num_epochs: 15, sad_num_epochs: 25, bond_encounters_factor: 20000, throttle_a: 0.4, throttle_d: 0.9 },
+      plugins: remotePlugins ? Object.keys(remotePlugins).reduce((acc, name) => {
+        if (name === "bt-tether") return acc;
+        acc[name] = { ...remotePlugins[name] };
+        Object.keys(acc[name]).forEach((k) => { if (SECRET_KEYS.includes(k) && typeof acc[name][k] === "string") acc[name][k] = ""; });
+        return acc;
+      }, {}) : prev.plugins,
+      web: { auth: false, username: "changeme", password: "changeme" }
+    }));
+    setStep(0); setDisplaySearch(""); setExpandedGroup(null); setWhitelistInput("");
+  };
+
+  const filteredDisplays = useMemo(() => {
+    if (!displaySearch) return DISPLAYS;
+    const s = displaySearch.toLowerCase();
+    const result = {};
+    Object.keys(DISPLAYS).forEach((group) => {
+      const f = DISPLAYS[group].filter((d) => d.id.toLowerCase().includes(s) || d.label.toLowerCase().includes(s) || group.toLowerCase().includes(s));
+      if (f.length > 0) result[group] = f;
+    });
+    return result;
+  }, [displaySearch]);
+
+  const toml = useMemo(() => buildToml(cfg), [cfg]);
+
+  const doDownload = () => {
+    const blob = new Blob([toml], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url; a.download = "config.toml";
+    document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+    setShowPwnstore(true);
+  };
+
+  const doCopy = () => {
+    const ta = document.createElement("textarea"); ta.value = toml; ta.style.position = "fixed"; ta.style.opacity = "0";
+    document.body.appendChild(ta); ta.select(); document.execCommand("copy"); document.body.removeChild(ta);
+    setCopied(true); setTimeout(() => setCopied(false), 2000);
+  };
+
+  const doWriteToBoot = async () => {
+    // Check if File System Access API is available
+    if (!window.showDirectoryPicker) {
+      setWriteStatus("unsupported");
+      setTimeout(() => setWriteStatus(null), 4000);
+      return;
+    }
+    try {
+      setWriteStatus("writing");
+      // User picks the boot partition folder
+      const dirHandle = await window.showDirectoryPicker({ mode: "readwrite", startIn: "desktop" });
+      // Write config.toml to selected folder
+      const fileHandle = await dirHandle.getFileHandle("config.toml", { create: true });
+      const writable = await fileHandle.createWritable();
+      await writable.write(toml);
+      await writable.close();
+      setWriteStatus("done");
+      setTimeout(() => setWriteStatus(null), 5000);
+      setShowPwnstore(true);
+    } catch (e) {
+      if (e.name === "AbortError") {
+        // User cancelled the picker
+        setWriteStatus(null);
+      } else {
+        console.error("Write failed:", e);
+        setWriteStatus("error");
+        setTimeout(() => setWriteStatus(null), 4000);
+      }
+    }
+  };
+
+  // ── Dynamic plugin renderer ───────────────────────────────────────
+  function renderPluginToggle(name) {
+    if (!cfg.plugins[name]) return null;
+    const meta = PLUGIN_META[name] || { desc: "" };
+    if (meta.group === "hidden") return null;
+    const opts = cfg.plugins[name];
+    const extraKeys = Object.keys(opts).filter((k) => k !== "enabled");
+    const isOn = opts.enabled;
+
+    return (
+      <div key={name}>
+        <Toggle checked={isOn} onChange={(v) => updatePlug(name, "enabled", v)} label={name} desc={meta.desc || name} />
+        {isOn && extraKeys.length > 0 && (
+          <div className="pl-8 pb-2 space-y-2">
+            {extraKeys.map((k) => {
+              const v = opts[k];
+              const isSecret = SECRET_KEYS.includes(k);
+              if (typeof v === "boolean") return <Toggle key={k} checked={v} onChange={(val) => updatePlug(name, k, val)} label={k.replace(/_/g, " ")} />;
+              if (typeof v === "number") return <NumInput key={k} label={k} value={v} onChange={(val) => updatePlug(name, k, val)} min={0} max={99999} />;
+              if (typeof v === "string") return <TextInput key={k} label={k} value={v} onChange={(val) => updatePlug(name, k, val)} placeholder={isSecret ? "Enter your key..." : v} mono={isSecret} type={isSecret ? "password" : "text"} />;
+              return null;
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  function getPluginsByGroup(group) {
+    return Object.keys(cfg.plugins).filter((name) => {
+      const meta = PLUGIN_META[name];
+      if (!meta) return group === "Other";
+      return meta.group === group;
+    });
+  }
+
+  // ── Step content ──────────────────────────────────────────────────
+  const renderContent = () => {
+    // IDENTITY
+    if (step === 0) return (
+      <div className="space-y-6">
+        <div><h2 className="text-xl font-bold text-zinc-100 mb-1">Name Your Pwnagotchi</h2><p className="text-zinc-500 text-sm">Unique identity. No spaces. Leave blank for default.</p></div>
+        <TextInput label="Device Name" value={cfg.name} onChange={(v) => update("name", v.replace(/\s/g, ""))} placeholder="pwnagotchi" mono desc="Hostname and mesh display name" />
+        <SelectBox label="Language" value={cfg.lang} onChange={(v) => update("lang", v)} options={LANGS} desc="Personality voice phrases" />
+        <div className="bg-zinc-900/50 rounded-xl p-4 border border-zinc-800">
+          <span className="text-zinc-500 text-sm mr-2">(^_^)</span>
+          <span className="font-mono text-emerald-400 text-lg">{cfg.name || "pwnagotchi"}</span>
+          <span className="text-zinc-600 text-lg font-mono">&gt;</span>
+        </div>
+      </div>
+    );
+    // DISPLAY
+    if (step === 1) return (
+      <div className="space-y-5">
+        <div><h2 className="text-xl font-bold text-zinc-100 mb-1">Display Setup</h2><p className="text-zinc-500 text-sm">Most popular: Waveshare 2.13in v4</p></div>
+        <Toggle checked={cfg.display.enabled} onChange={(v) => update("display.enabled", v)} label="Enable Display" desc="Disable for headless" />
+        {cfg.display.enabled && (<div className="space-y-4">
+          <input type="text" value={displaySearch} onChange={(e) => setDisplaySearch(e.target.value)} placeholder="Search displays..."
+            className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-emerald-500 transition-all" />
+          <div className="max-h-64 overflow-y-auto rounded-xl border border-zinc-800 bg-zinc-900/30">
+            {Object.keys(filteredDisplays).map((group) => {
+              const items = filteredDisplays[group];
+              const isOpen = expandedGroup === group || displaySearch.length > 0;
+              return (<div key={group}>
+                <button onClick={() => setExpandedGroup(expandedGroup === group ? null : group)}
+                  className="w-full text-left px-3 py-2 text-xs font-bold uppercase tracking-wider text-zinc-500 hover:text-zinc-300 bg-zinc-900/80 sticky top-0 flex justify-between items-center">
+                  <span>{group}</span><span className="text-zinc-700">{isOpen ? "v" : ">"} {items.length}</span>
+                </button>
+                {isOpen && items.map((d) => (
+                  <button key={d.id} onClick={() => update("display.type", d.id)}
+                    className={"w-full text-left px-4 py-1.5 text-sm transition-all border-l-2 " + (cfg.display.type === d.id ? "bg-emerald-500/10 text-emerald-400 border-emerald-500" : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 border-transparent")}>
+                    <span className="font-mono text-xs text-zinc-600 mr-2">{d.id}</span>{d.label}
+                  </button>
+                ))}
+              </div>);
+            })}
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <SelectBox label="Rotation" value={String(cfg.display.rotation)} onChange={(v) => update("display.rotation", Number(v))}
+              options={[{ id: "0", label: "0 deg" }, { id: "90", label: "90 deg" }, { id: "180", label: "180 (default)" }, { id: "270", label: "270 deg" }]} />
+            <div className="flex items-end pb-1"><Toggle checked={cfg.invert} onChange={(v) => update("invert", v)} label="Invert" desc="White bg" /></div>
+          </div>
+          <div className="bg-zinc-900/50 rounded-xl p-3 border border-zinc-800">
+            <span className="text-zinc-500 text-xs">Selected: </span><span className="font-mono text-emerald-400 text-sm">{cfg.display.type}</span>
+          </div>
+        </div>)}
+      </div>
+    );
+    // WHITELIST
+    if (step === 2) return (
+      <div className="space-y-5">
+        <div><h2 className="text-xl font-bold text-zinc-100 mb-1">Network Whitelist</h2><p className="text-zinc-500 text-sm">Networks your pwnagotchi will never attack. Add your home WiFi, phone hotspot, and anything you want to protect.</p></div>
+        <div className="flex gap-2">
+          <input value={whitelistInput} onChange={(e) => setWhitelistInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") addWL(); }}
+            placeholder="SSID or MAC address..." className="flex-1 bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-emerald-500 transition-all font-mono" />
+          <button onClick={addWL} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium rounded-lg transition-colors">Add</button>
+        </div>
+        {cfg.whitelist.length > 0 && <div className="space-y-1">{cfg.whitelist.map((w, i) => (
+          <div key={i} className="flex items-center justify-between bg-zinc-900/50 border border-zinc-800 rounded-lg px-3 py-2">
+            <span className="font-mono text-sm text-zinc-300">{w}</span>
+            <button onClick={() => update("whitelist", cfg.whitelist.filter((_, j) => j !== i))} className="text-red-400 hover:text-red-300 text-xs font-medium">Remove</button>
+          </div>
+        ))}</div>}
+        <div className="bg-zinc-900/30 border border-zinc-800 rounded-xl p-4">
+          <p className="text-zinc-400 text-xs font-bold uppercase tracking-wider mb-3">Accepted Formats</p>
+          <div className="space-y-2">{WHITELIST_EXAMPLES.map((ex) => (
+            <div key={ex.value} className="flex items-start gap-3 bg-zinc-900/50 border border-zinc-800 rounded-lg px-3 py-2">
+              <span className="font-mono text-sm text-zinc-500 shrink-0">{ex.value}</span>
+              <span className="text-zinc-600 text-xs">{ex.desc}</span>
+            </div>
+          ))}</div>
+        </div>
+        <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3">
+          <p className="text-amber-400 text-xs"><strong>Important:</strong> Always whitelist your home network. Your pwnagotchi will deauth and capture handshakes on everything NOT in this list.</p>
+        </div>
+      </div>
+    );
+    // PERSONALITY
+    if (step === 3) return (
+      <div className="space-y-5">
+        <div><h2 className="text-xl font-bold text-zinc-100 mb-1">Personality</h2><p className="text-zinc-500 text-sm">Defaults work well. Auto-tune handles channels at runtime.</p></div>
+        <Toggle checked={cfg.personality.deauth} onChange={(v) => update("personality.deauth", v)} label="Deauthentication" desc="Deauth frames for full WPA handshakes" />
+        <Toggle checked={cfg.personality.associate} onChange={(v) => update("personality.associate", v)} label="Association" desc="Association frames for PMKIDs" />
+        <Toggle checked={cfg.personality.advertise} onChange={(v) => update("personality.advertise", v)} label="Mesh Advertising" desc="Visible to nearby pwnagotchis" />
+        <div className="grid grid-cols-2 gap-4">
+          <Tip label="Recon Time (s)" tip="How long pwnagotchi spends scanning on each channel before deciding what to attack. Higher = more thorough but slower.">
+            <NumInput value={cfg.personality.recon_time} onChange={(v) => update("personality.recon_time", v)} min={5} max={120} />
+          </Tip>
+          <Tip label="Hop Recon (s)" tip="How long to listen on each channel while hopping. Lower = faster scanning across channels, higher = better chance of catching traffic on each one.">
+            <NumInput value={cfg.personality.hop_recon_time} onChange={(v) => update("personality.hop_recon_time", v)} min={1} max={60} />
+          </Tip>
+          <Tip label="Min RSSI" tip="Minimum signal strength to bother attacking. -200 = attack everything regardless of distance. -70 = only attack nearby strong signals. Useful to avoid wasting time on far-away networks.">
+            <NumInput value={cfg.personality.min_rssi} onChange={(v) => update("personality.min_rssi", v)} min={-200} max={0} />
+          </Tip>
+          <Tip label="Max Interactions" tip="Maximum number of deauth/associate attempts per access point per epoch. Higher = more aggressive but noisier. Lower = stealthier.">
+            <NumInput value={cfg.personality.max_interactions} onChange={(v) => update("personality.max_interactions", v)} min={1} max={20} />
+          </Tip>
+          <Tip label="AP TTL (s)" tip="Access Point Time-To-Live. How long (seconds) pwnagotchi remembers a seen access point before forgetting it. After this time, it will treat the AP as new if seen again.">
+            <NumInput value={cfg.personality.ap_ttl} onChange={(v) => update("personality.ap_ttl", v)} min={30} max={600} />
+          </Tip>
+          <Tip label="STA TTL (s)" tip="Station (client) Time-To-Live. How long (seconds) pwnagotchi remembers a WiFi client device. Clients that disappear for longer than this are forgotten and treated as new targets.">
+            <NumInput value={cfg.personality.sta_ttl} onChange={(v) => update("personality.sta_ttl", v)} min={30} max={600} />
+          </Tip>
+        </div>
+        <div>
+          <label className="text-zinc-400 text-xs uppercase tracking-wider font-semibold">Channels</label>
+          <p className="text-zinc-600 text-xs mb-2">Empty = all channels. Click to focus specific ones.</p>
+          <p className="text-zinc-600 text-xs mb-1 font-semibold">2.4 GHz</p>
+          <div className="flex flex-wrap gap-1.5 mb-3">{CHANNELS_2G.map((ch) => (
+            <button key={ch} onClick={() => toggleCh(ch)} className={"px-2 py-1 text-xs font-mono rounded transition-all " + (cfg.personality.channels.indexOf(ch) >= 0 ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40" : "bg-zinc-900 text-zinc-600 border border-zinc-800 hover:border-zinc-600")}>{ch}</button>
+          ))}</div>
+          <p className="text-zinc-600 text-xs mb-1 font-semibold">5 GHz</p>
+          <div className="flex flex-wrap gap-1.5">{CHANNELS_5G.map((ch) => (
+            <button key={ch} onClick={() => toggleCh(ch)} className={"px-2 py-1 text-xs font-mono rounded transition-all " + (cfg.personality.channels.indexOf(ch) >= 0 ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40" : "bg-zinc-900 text-zinc-600 border border-zinc-800 hover:border-zinc-600")}>{ch}</button>
+          ))}</div>
+          {cfg.personality.channels.length > 0 && <p className="text-emerald-400/60 text-xs mt-2 font-mono">[{cfg.personality.channels.join(", ")}]</p>}
+        </div>
+      </div>
+    );
+    // PLUGINS (dynamic!)
+    if (step === 4) {
+      const groups = ["Core", "Maintenance", "GPS", "Cracking", "WiGLE", "Cloud", "Hardware"];
+      const uncategorised = Object.keys(cfg.plugins).filter((n) => { const m = PLUGIN_META[n]; return !m || (!groups.includes(m.group) && m.group !== "hidden"); });
+      return (
+        <div className="space-y-2">
+          <div><h2 className="text-xl font-bold text-zinc-100 mb-1">Plugins</h2><p className="text-zinc-500 text-sm">Toggle plugins and configure their settings. Synced from GitHub defaults.toml</p></div>
+          {/* Sync status */}
+          <div className="flex items-center justify-between bg-zinc-900/50 rounded-lg px-3 py-2 border border-zinc-800">
+            <div className="flex items-center gap-2">
+              <span className={"w-2 h-2 rounded-full " + (syncStatus === "synced" ? "bg-emerald-500" : syncStatus === "cached" ? "bg-blue-500" : syncStatus === "fetching" ? "bg-yellow-500 animate-pulse" : "bg-zinc-600")} />
+              <span className="text-zinc-500 text-xs">
+                {syncStatus === "synced" && "Synced from GitHub"}
+                {syncStatus === "cached" && "Cached"}
+                {syncStatus === "fetching" && "Syncing..."}
+                {syncStatus === "offline" && "Using built-in defaults"}
+                {syncStatus === "loading" && "Loading..."}
+                {lastSynced && <span className="text-zinc-600 ml-1">({lastSynced.toLocaleDateString()})</span>}
+              </span>
+            </div>
+            <button onClick={fetchFromGitHub} className="text-zinc-600 hover:text-emerald-400 text-xs transition-colors">Refresh</button>
+          </div>
+          {groups.map((group) => {
+            const plugs = getPluginsByGroup(group);
+            if (plugs.length === 0) return null;
+            return (<div key={group}><Section title={group} />{plugs.map(renderPluginToggle)}</div>);
+          })}
+          {uncategorised.length > 0 && <div><Section title="Other" />{uncategorised.map(renderPluginToggle)}</div>}
+        </div>
+      );
+    }
+    // WEB UI
+    if (step === 5) return (
+      <div className="space-y-5">
+        <div><h2 className="text-xl font-bold text-zinc-100 mb-1">Web UI</h2><p className="text-zinc-500 text-sm">Runs on port 8080. Access via USB or ethernet.</p></div>
+        <Toggle checked={cfg.web.auth} onChange={(v) => update("web.auth", v)} label="Enable Authentication" desc="Require login for web UI" />
+        {cfg.web.auth && (<div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <TextInput label="Username" value={cfg.web.username} onChange={(v) => update("web.username", v)} placeholder="admin" />
+            <TextInput label="Password" value={cfg.web.password} onChange={(v) => update("web.password", v)} placeholder="changeme" type="password" />
+          </div>
+          <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3"><p className="text-amber-400 text-xs"><strong>Change the defaults!</strong> Anyone on your network can access the web UI on port 8080.</p></div>
+        </div>)}
+      </div>
+    );
+    // GENERATE
+    if (step === 6) return (
+      <div className="space-y-5">
+        <div><h2 className="text-xl font-bold text-zinc-100 mb-1">Your Config</h2><p className="text-zinc-500 text-sm">Complete config ready to use. Download and install using one of the methods below.</p></div>
+        <div className="bg-zinc-950 border border-zinc-800 rounded-xl overflow-hidden">
+          <div className="flex items-center justify-between px-3 py-2 bg-zinc-900 border-b border-zinc-800">
+            <span className="text-zinc-500 text-xs font-mono">config.toml</span>
+            <button onClick={doCopy} className="text-zinc-500 hover:text-zinc-300 text-xs transition-colors">{copied ? "Copied!" : "Copy"}</button>
+          </div>
+          <pre className="p-4 text-xs font-mono text-emerald-400/80 overflow-x-auto max-h-64 overflow-y-auto leading-relaxed whitespace-pre-wrap">{toml}</pre>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <button onClick={doWriteToBoot}
+            className={"w-full py-3 font-bold rounded-xl transition-colors text-sm " + (writeStatus === "done" ? "bg-emerald-600 text-white" : writeStatus === "writing" ? "bg-zinc-700 text-zinc-400" : "bg-blue-600 hover:bg-blue-500 text-white")}>
+            {writeStatus === "writing" ? "Select boot partition..." : writeStatus === "done" ? "Written to SD!" : writeStatus === "error" ? "Write failed" : writeStatus === "unsupported" ? "Not supported (use Download)" : "Write to SD Card"}
+          </button>
+          <button onClick={doDownload} className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl transition-colors text-sm">Download config.toml</button>
+        </div>
+        {writeStatus === "done" && (
+          <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-3">
+            <p className="text-emerald-400 text-xs"><strong>config.toml written!</strong> Safely eject the SD card, insert into your Pi, and boot. Pwnagotchi will pick up the config automatically.</p>
+          </div>
+        )}
+        {writeStatus === "unsupported" && (
+          <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3">
+            <p className="text-amber-400 text-xs"><strong>Browser not supported.</strong> Write to SD requires Chrome or Edge. Use the Download button instead and copy config.toml to the boot partition manually.</p>
+          </div>
+        )}
+
+        {showPwnstore && (
+          <a href="https://pwnstore.org/" target="_blank" rel="noopener noreferrer"
+            className="block bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4 hover:bg-emerald-500/20 hover:border-emerald-400/50 transition-all group">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-emerald-400 text-sm font-bold group-hover:text-emerald-300">(^_^) Config saved! Now grab some plugins</p>
+                <p className="text-zinc-500 text-xs mt-1">Visit PwnStore to browse and install community plugins</p>
+              </div>
+              <span className="text-emerald-500/50 group-hover:text-emerald-400 text-lg">→</span>
+            </div>
+          </a>
+        )}
+
+        {/* How config merging works */}
+        <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-4 space-y-1">
+          <p className="text-zinc-400 text-xs font-bold uppercase tracking-wider">How this works</p>
+          <p className="text-zinc-600 text-xs">This generates a complete config. Pwnagotchi loads defaults.toml first, then merges your config.toml on top. Values you set here override defaults.</p>
+        </div>
+
+        {/* INSTALL: v2.9.5.4+ Boot partition (RECOMMENDED) */}
+        <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-4 space-y-2">
+          <div className="flex items-center gap-2">
+            <span className="bg-emerald-500/20 text-emerald-400 text-xs font-bold px-2 py-0.5 rounded">RECOMMENDED</span>
+            <p className="text-zinc-300 text-xs font-bold uppercase tracking-wider">Boot Partition (v2.9.5.4+)</p>
+          </div>
+          <div className="space-y-1.5 text-zinc-400 text-xs font-mono">
+            <p>1. Flash pwnagotchi image to SD card with rpi-imager</p>
+            <p>2. Re-insert SD card into your computer</p>
+            <p>3. Click <span className="text-blue-400 font-bold">Write to SD Card</span> above and select the <span className="text-emerald-400">boot</span> / <span className="text-emerald-400">bootfs</span> partition</p>
+            <p className="text-zinc-600">   Or manually copy the downloaded config.toml to the boot partition</p>
+            <p>4. Safely eject SD card, insert into Pi, and boot (first boot 2-3 min)</p>
+          </div>
+          <p className="text-zinc-600 text-xs">Pwnagotchi auto-detects config on /boot/firmware/ and moves it to /etc/pwnagotchi/config.toml on first boot.</p>
+          <p className="text-zinc-600 text-xs"><span className="text-zinc-500">Write to SD</span> works in Chrome and Edge. Firefox/Safari users: use Download and copy manually.</p>
+        </div>
+
+        {/* INSTALL: v2.9.5.4+ SSH */}
+        <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-4 space-y-2">
+          <p className="text-zinc-400 text-xs font-bold uppercase tracking-wider">SSH Method (v2.9.5.4+)</p>
+          <div className="space-y-1.5 text-zinc-500 text-xs font-mono">
+            <p>1. Connect Pi via USB data cable (port closest to HDMI on Zero/Zero2)</p>
+            <p>2. Wait 2-3 minutes for first boot</p>
+            <p>3. <span className="text-emerald-400">ssh pi@pwnagotchi.local</span></p>
+            <p>4. Password: <span className="text-zinc-300">raspberry</span></p>
+            <p>5. <span className="text-emerald-400">scp config.toml pi@pwnagotchi.local:/etc/pwnagotchi/config.toml</span></p>
+            <p>6. Restart: <span className="text-emerald-400">pwnkill</span></p>
+          </div>
+          <p className="text-zinc-600 text-xs">If you changed the hostname, use: ssh pi@yourhostname.local</p>
+          <p className="text-zinc-600 text-xs">Or edit in place: <span className="text-emerald-400">config</span> (opens nano editor)</p>
+        </div>
+
+        {/* INSTALL: Pre-2.9.5.4 SSH */}
+        <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-4 space-y-2">
+          <p className="text-zinc-400 text-xs font-bold uppercase tracking-wider">SSH Method (Pre-2.9.5.4)</p>
+          <div className="space-y-1.5 text-zinc-500 text-xs font-mono">
+            <p>1. Connect Pi via USB data cable</p>
+            <p>2. Install RNDIS driver (Windows) or set IP manually</p>
+            <p>3. Set your computer's USB network IP to <span className="text-zinc-300">10.0.0.1</span></p>
+            <p>4. <span className="text-emerald-400">ssh pi@10.0.0.2</span></p>
+            <p>5. Password: <span className="text-zinc-300">raspberry</span></p>
+            <p>6. <span className="text-emerald-400">scp config.toml pi@10.0.0.2:/etc/pwnagotchi/config.toml</span></p>
+            <p>7. Restart: <span className="text-emerald-400">sudo systemctl restart pwnagotchi</span></p>
+          </div>
+          <p className="text-zinc-600 text-xs">Consider upgrading to v2.9.5.4+ for much easier setup!</p>
+        </div>
+      </div>
+    );
+    return null;
+  };
+
+  // ── Layout ────────────────────────────────────────────────────────
+  return (
+    <div className="min-h-screen bg-zinc-950 text-zinc-200">
+      <div className="max-w-xl mx-auto px-4 py-6">
+        <div className="text-center mb-6">
+          <div className="flex items-center justify-center gap-2 mb-1">
+            <span className="text-2xl">(^_^)</span>
+            <h1 className="text-2xl font-black tracking-tight text-zinc-100">Pwn<span className="text-emerald-400">Config</span></h1>
+          </div>
+          <p className="text-zinc-500 text-xs mb-2">Pwnagotchi Config Generator</p>
+          <a href="https://buymeacoffee.com/wpa2" target="_blank" rel="noopener noreferrer"
+            className="inline-block text-zinc-600 text-xs border border-zinc-800 rounded px-2 py-0.5 hover:text-emerald-400 hover:border-emerald-500/40 transition-all">| WPA2 |</a>
+        </div>
+        <div className="flex items-center gap-1 mb-6 px-1">
+          {STEP_NAMES.map((s, i) => (
+            <button key={s} onClick={() => setStep(i)} title={s}
+              className={"flex-1 rounded-full transition-all " + (i <= step ? "bg-emerald-500" : "bg-zinc-800") + (i === step ? " h-2" : " h-1.5")} />
+          ))}
+        </div>
+        <div className="flex justify-between items-center mb-4 px-1">
+          <span className="text-zinc-600 text-xs">Step {step + 1} / {STEP_NAMES.length}</span>
+          <span className="text-zinc-500 text-xs font-medium">{STEP_NAMES[step]}</span>
+        </div>
+        <div className="bg-zinc-900/40 border border-zinc-800/80 rounded-2xl p-5 min-h-96">{renderContent()}</div>
+        <div className="flex justify-between mt-4 gap-3">
+          <button onClick={() => setStep(Math.max(0, step - 1))} disabled={step === 0}
+            className={"px-5 py-2.5 rounded-xl text-sm font-medium transition-all " + (step === 0 ? "text-zinc-700 cursor-not-allowed" : "text-zinc-400 hover:text-zinc-200 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800")}>Back</button>
+          <button onClick={doRestart}
+            className={"px-5 py-2.5 rounded-xl text-sm font-medium transition-all border " + (confirmRestart ? "text-red-400 bg-red-500/10 border-red-500/40 hover:bg-red-500/20" : "text-amber-400 hover:text-amber-300 bg-zinc-900 hover:bg-zinc-800 border-zinc-800 hover:border-amber-500/30")}>{confirmRestart ? "Sure? Click again" : "Restart"}</button>
+          {step < STEP_NAMES.length - 1
+            ? <button onClick={() => setStep(step + 1)} className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold rounded-xl transition-colors">Next</button>
+            : <button onClick={doDownload} className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold rounded-xl transition-colors">Download</button>
+          }
+        </div>
+      </div>
+    </div>
+  );
+}
+
+    const root = ReactDOM.createRoot(document.getElementById("root"));
+    root.render(React.createElement(PwnConfig));
+  </script>
+</body>
+</html>
