@@ -81,7 +81,7 @@
   },
   {
     "name": "bt-tether-helper",
-    "version": "1.2.2",
+    "version": "1.2.3",
     "description": "Guided Bluetooth tethering with user instructions",
     "author": "wsvdmeer",
     "category": "Display",
@@ -381,23 +381,13 @@
   },
   {
     "name": "neurolyzer",
-    "version": "1.6.0",
-    "description": "Advanced WIDS/WIPS evasion system with hardware-aware adaptive countermeasures",
+    "version": "2.0.0",
+    "description": "Advanced WIDS/WIPS evasion with hardware-aware adaptive countermeasures",
     "author": "AlienMajik",
     "category": "Display",
     "origin_type": "zip",
     "download_url": "https://github.com/AlienMajik/pwnagotchi_plugins/archive/refs/heads/main.zip",
     "path_inside_zip": "pwnagotchi_plugins-main/neurolyzer.py"
-  },
-  {
-    "name": "neurolyzerbeta",
-    "version": "1.6.0",
-    "description": "Advanced WIDS/WIPS evasion system with hardware-aware adaptive countermeasures",
-    "author": "AlienMajik",
-    "category": "Display",
-    "origin_type": "zip",
-    "download_url": "https://github.com/AlienMajik/pwnagotchi_plugins/archive/refs/heads/main.zip",
-    "path_inside_zip": "pwnagotchi_plugins-main/neurolyzerbeta.py"
   },
   {
     "name": "NoGPSPrivacy",
@@ -491,9 +481,9 @@
   },
   {
     "name": "skyhigh",
-    "version": "1.1.1",
-    "description": "Advanced aircraft/ADS-B data plugin with robust type-detection, embedded SVG icons, filtering, export, and caching.",
-    "author": "AlienMajik",
+    "version": "2.0.0",
+    "description": "Advanced aircraft/ADS\u2011B plugin with robust type detection, filtering, export, and caching.",
+    "author": "AlienMajik (enhanced by community)",
     "category": "Display",
     "origin_type": "zip",
     "download_url": "https://github.com/AlienMajik/pwnagotchi_plugins/archive/refs/heads/main.zip",
@@ -501,8 +491,8 @@
   },
   {
     "name": "snoopr",
-    "version": "2.0.0",
-    "description": "A plugin for wardriving Wi-Fi and Bluetooth networks and detecting snoopers with enhanced functionality.",
+    "version": "5.1.0",
+    "description": "Enhanced SnoopR: surveillance detection with WiFi/BLE/Aircraft, web UI, mesh, persistence scoring.",
     "author": "AlienMajik",
     "category": "Display",
     "origin_type": "zip",
