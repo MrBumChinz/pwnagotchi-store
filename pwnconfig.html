@@ -23,8 +23,7 @@
       };
     }
 
-
-// ── TOML parser (simple, handles defaults.toml structure) ───────────
+// ── TOML parser (fixed: handles quoted strings with inline comments) ─
 function parseToml(text) {
   const result = {};
   let currentSection = null;
@@ -48,21 +47,33 @@ function parseToml(text) {
       if (kvMatch) {
         const key = kvMatch[1];
         let val = kvMatch[2].trim();
-        // Remove inline comments
-        if (val.includes("#") && !val.startsWith('"') && !val.startsWith("[")) {
-          val = val.split("#")[0].trim();
+
+        // ── FIX: parse values correctly so inline comments on quoted
+        //    strings (e.g. gateway = "" # comment) don't corrupt output
+        if (val === "true") {
+          val = true;
+        } else if (val === "false") {
+          val = false;
+        } else if (val.startsWith('"')) {
+          // Find the matching closing quote starting after the opening one
+          const close = val.indexOf('"', 1);
+          // Extract content between the quotes; anything after is a comment
+          val = close !== -1 ? val.slice(1, close) : val.slice(1);
+        } else if (val.startsWith("[")) {
+          // Simple array — strip trailing comment first, then parse
+          const noComment = val.includes("#") ? val.split("#")[0].trim() : val;
+          if (noComment.endsWith("]")) {
+            try { val = JSON.parse(noComment.replace(/'/g, '"')); } catch (e) { val = []; }
+          } else {
+            val = [];
+          }
+        } else {
+          // Unquoted scalar — strip trailing comment then coerce to number
+          if (val.includes("#")) val = val.split("#")[0].trim();
+          if (!isNaN(Number(val)) && val !== "") val = Number(val);
         }
-        // Parse value
-        if (val === "true") val = true;
-        else if (val === "false") val = false;
-        else if (val.startsWith('"') && val.endsWith('"')) val = val.slice(1, -1);
-        else if (val.startsWith("[") && val.endsWith("]")) {
-          // Simple array - skip complex multiline
-          try {
-            val = JSON.parse(val.replace(/'/g, '"'));
-          } catch (e) { val = []; }
-        } else if (!isNaN(Number(val)) && val !== "") val = Number(val);
-        // Set in result
+
+        // Set in result object
         const parts = currentSection.split(".");
         let obj = result;
         for (const p of parts) obj = obj[p];
@@ -83,7 +94,75 @@ function extractPlugins(parsed) {
   return plugins;
 }
 
-// ── Plugin descriptions (metadata overlay) ──────────────────────────
+// ── Validation ───────────────────────────────────────────────────────
+const SECRET_KEYS = ["api_key", "key", "token", "password"];
+
+// Keys that MUST be non-empty when the plugin is enabled
+const REQUIRED_PLUGIN_KEYS = {
+  "wpa-sec":  ["api_key"],
+  "wigle":    ["api_key"],
+  "ohcapi":   ["api_key"],
+  "pwncrack": ["key"],
+  "gdrivesync": [], // no secret key required
+};
+
+function validateConfig(cfg) {
+  const errors = [];   // must fix / shown as blockers (user must acknowledge)
+  const warnings = []; // nice-to-fix
+
+  // ── Warnings ──────────────────────────────────────────────────────
+  if (!cfg.name || cfg.name.trim() === "") {
+    warnings.push({ id: "no-name", msg: "No device name set — defaults to \"pwnagotchi\"." });
+  }
+
+  if (cfg.whitelist.length === 0) {
+    warnings.push({ id: "no-whitelist", msg: "Whitelist is empty. Your pwnagotchi will target every visible network, including your own." });
+  }
+
+  if (cfg.display.enabled && !cfg.display.type) {
+    warnings.push({ id: "no-display-type", msg: "Display is enabled but no display type is selected." });
+  }
+
+  // Pwndroid/GPS listener enabled but gps_listener also on — not really an error but worth noting
+  const pwndroid = cfg.plugins["pwndroid"];
+  const gpsListener = cfg.plugins["gps_listener"];
+  if (pwndroid && pwndroid.enabled && gpsListener && gpsListener.enabled) {
+    warnings.push({ id: "pwndroid-gpslistener", msg: "Both pwndroid and gps_listener are enabled. gps_listener is for pwndroid GPS — this is fine, just making sure it's intentional." });
+  }
+
+  // ── Errors ────────────────────────────────────────────────────────
+  // Web auth with default credentials
+  if (cfg.web.auth) {
+    if (cfg.web.username === "changeme" || cfg.web.password === "changeme") {
+      errors.push({ id: "default-web-creds", msg: "Web UI authentication is on but you're still using default credentials (changeme). Change these before deploying." });
+    }
+  }
+
+  // Enabled plugins with empty required keys
+  Object.keys(REQUIRED_PLUGIN_KEYS).forEach((pluginName) => {
+    const plug = cfg.plugins[pluginName];
+    if (!plug || !plug.enabled) return;
+    const requiredKeys = REQUIRED_PLUGIN_KEYS[pluginName];
+    requiredKeys.forEach((k) => {
+      if (!plug[k] || String(plug[k]).trim() === "") {
+        errors.push({ id: pluginName + "-" + k, msg: pluginName + " is enabled but \"" + k + "\" is empty. The plugin won't work without it." });
+      }
+    });
+  });
+
+  // auto_backup with default/empty path
+  const backup = cfg.plugins["auto_backup"];
+  if (backup && backup.enabled) {
+    const loc = backup.backup_location || "";
+    if (!loc || loc.trim() === "") {
+      errors.push({ id: "backup-no-path", msg: "auto_backup is enabled but backup_location is empty. Set a path like /home/pi/backups." });
+    }
+  }
+
+  return { errors, warnings };
+}
+
+// ── Plugin metadata ──────────────────────────────────────────────────
 const PLUGIN_META = {
   "auto-tune": { group: "Core", desc: "Dynamic channel selection (replaces AI)" },
   "fix_services": { group: "Core", desc: "Auto-recover from firmware crashes and blindbug" },
@@ -106,25 +185,17 @@ const PLUGIN_META = {
   "pisugarx": { group: "Hardware", desc: "PiSugar battery management" },
   "ups_hat_c": { group: "Hardware", desc: "UPS HAT C battery management" },
   "ups_lite": { group: "Hardware", desc: "UPS-Lite battery" },
-  "bt-tether": { group: "hidden", desc: "" },
+  "bt-tether": { group: "Hardware", desc: "Bluetooth tether to phone for internet sharing" },
   "gpio_buttons": { group: "Hardware", desc: "GPIO button controls" },
   "pwndroid": { group: "Hardware", desc: "Pwndroid Android companion" },
 };
 
-// Sensitive keys we should mask or handle carefully
-const SECRET_KEYS = ["api_key", "key", "token", "password"];
-
-// ── Display data ────────────────────────────────────────────────────
 const DISPLAYS = {
   "Waveshare E-Paper 2.13in": [
-    { id: "waveshare_1", label: "v1 (original)" },
-    { id: "waveshare_2", label: "v2" },
-    { id: "waveshare_3", label: "v3" },
-    { id: "waveshare_4", label: "v4 - Most Common" },
-    { id: "waveshare2in13b_v3", label: "B v3 (tricolour)" },
-    { id: "waveshare2in13b_v4", label: "B v4 (tricolour)" },
-    { id: "waveshare2in13bc", label: "BC (yellow)" },
-    { id: "waveshare2in13d", label: "D (flexible)" },
+    { id: "waveshare_1", label: "v1 (original)" }, { id: "waveshare_2", label: "v2" },
+    { id: "waveshare_3", label: "v3" }, { id: "waveshare_4", label: "v4 - Most Common" },
+    { id: "waveshare2in13b_v3", label: "B v3 (tricolour)" }, { id: "waveshare2in13b_v4", label: "B v4 (tricolour)" },
+    { id: "waveshare2in13bc", label: "BC (yellow)" }, { id: "waveshare2in13d", label: "D (flexible)" },
     { id: "waveshare2in13g", label: "G (4-colour)" }
   ],
   "Waveshare E-Paper Small": [
@@ -198,10 +269,10 @@ const WHITELIST_EXAMPLES = [
 
 const GITHUB_RAW_URL = "https://raw.githubusercontent.com/jayofelony/pwnagotchi/noai/pwnagotchi/defaults.toml";
 const CACHE_KEY = "pwnconfig-defaults";
-const CACHE_MAX_AGE = 7 * 24 * 60 * 60 * 1000; // 7 days
+const CACHE_MAX_AGE = 7 * 24 * 60 * 60 * 1000;
 
-// ── TOML generator ──────────────────────────────────────────────────
-function buildToml(cfg, pluginDefs) {
+// ── TOML generator ───────────────────────────────────────────────────
+function buildToml(cfg) {
   const L = [];
   L.push("# Pwnagotchi config.toml");
   L.push("# Generated by PwnConfig | wpa-2");
@@ -222,28 +293,41 @@ function buildToml(cfg, pluginDefs) {
   } else { L.push("whitelist = []"); }
   L.push('confd = "/etc/pwnagotchi/conf.d/"');
   L.push('custom_plugins = "/usr/local/share/pwnagotchi/custom-plugins/"');
+  L.push("custom_plugin_repos = [");
+  L.push('    "https://github.com/jayofelony/pwnagotchi-torch-plugins/archive/master.zip",');
+  L.push('    "https://github.com/Sniffleupagus/pwnagotchi_plugins/archive/master.zip",');
+  L.push('    "https://github.com/NeonLightning/pwny/archive/master.zip",');
+  L.push('    "https://github.com/marbasec/UPSLite_Plugin_1_3/archive/master.zip",');
+  L.push('    "https://github.com/wpa-2/Pwnagotchi-Plugins/archive/master.zip",');
+  L.push('    "https://github.com/cyberartemio/wardriver-pwnagotchi-plugin/archive/main.zip"');
+  L.push("]");
   L.push("");
 
-  // Plugins
   Object.keys(cfg.plugins).forEach((name) => {
     const opts = cfg.plugins[name];
     L.push("[main.plugins." + name + "]");
     Object.keys(opts).forEach((k) => {
       const v = opts[k];
-      if (typeof v === "string") L.push(k + ' = "' + v + '"');
+      if (Array.isArray(v)) {
+        if (v.length === 0) {
+          L.push(k + " = []");
+        } else {
+          // Render inline: [7, 85] or ["val"] — matches defaults.toml style
+          const items = v.map((item) => typeof item === "string" ? '"' + item + '"' : String(item));
+          L.push(k + " = [" + items.join(", ") + "]");
+        }
+      } else if (typeof v === "string") L.push(k + ' = "' + v + '"');
       else if (typeof v === "boolean") L.push(k + " = " + v);
       else if (typeof v === "number") L.push(k + " = " + v);
     });
     L.push("");
   });
 
-  // Log
   L.push("[main.log]");
   L.push('path = "/etc/pwnagotchi/log/pwnagotchi.log"');
   L.push('path-debug = "/etc/pwnagotchi/log/pwnagotchi-debug.log"');
   L.push(""); L.push("[main.log.rotation]"); L.push("enabled = true"); L.push('size = "10M"'); L.push("");
 
-  // Personality
   const p = cfg.personality;
   L.push("[personality]");
   L.push("advertise = " + p.advertise); L.push("deauth = " + p.deauth); L.push("associate = " + p.associate);
@@ -256,7 +340,6 @@ function buildToml(cfg, pluginDefs) {
   L.push("sad_num_epochs = " + p.sad_num_epochs); L.push("bond_encounters_factor = " + p.bond_encounters_factor);
   L.push("throttle_a = " + p.throttle_a); L.push("throttle_d = " + p.throttle_d); L.push("");
 
-  // UI
   L.push("[ui]"); L.push("invert = " + cfg.invert); L.push("cursor = true"); L.push("fps = 0.0"); L.push("");
   L.push("[ui.font]"); L.push('name = "DejaVuSansMono"'); L.push("size_offset = 0"); L.push("");
   L.push("[ui.web]"); L.push("enabled = true"); L.push('address = "::"');
@@ -266,15 +349,13 @@ function buildToml(cfg, pluginDefs) {
   L.push("[ui.display]"); L.push("enabled = " + cfg.display.enabled);
   L.push("rotation = " + cfg.display.rotation); L.push('type = "' + cfg.display.type + '"'); L.push("");
 
-  // Bettercap
   L.push("[bettercap]"); L.push('handshakes = "/home/pi/handshakes"'); L.push("silence = [");
-  ["ble.device.new","ble.device.lost","ble.device.service.discovered","ble.device.characteristic.discovered",
+  const silenceEntries = ["ble.device.new","ble.device.lost","ble.device.service.discovered","ble.device.characteristic.discovered",
    "ble.device.disconnected","ble.device.connected","ble.connection.timeout","wifi.client.new",
-   "wifi.client.lost","wifi.client.probe","wifi.ap.new","wifi.ap.lost","mod.started"
-  ].forEach((s) => L.push('    "' + s + '",'));
+   "wifi.client.lost","wifi.client.probe","wifi.ap.new","wifi.ap.lost","mod.started"];
+  silenceEntries.forEach((s, i) => L.push('    "' + s + '"' + (i < silenceEntries.length - 1 ? "," : "")));
   L.push("]"); L.push("");
 
-  // FS
   L.push("[fs.memory]"); L.push("enabled = true"); L.push("");
   L.push("[fs.memory.mounts.log]"); L.push("enabled = true"); L.push('mount = "/etc/pwnagotchi/log/"');
   L.push('size = "50M"'); L.push("sync = 60"); L.push("zram = true"); L.push("rsync = true"); L.push("");
@@ -284,7 +365,7 @@ function buildToml(cfg, pluginDefs) {
   return L.join("\n") + "\n";
 }
 
-// ── Components ──────────────────────────────────────────────────────
+// ── UI components ─────────────────────────────────────────────────────
 function Toggle({ checked, onChange, label, desc }) {
   return (
     <div className="flex items-start gap-3 py-2 cursor-pointer select-none" onClick={() => onChange(!checked)}>
@@ -300,6 +381,7 @@ function Toggle({ checked, onChange, label, desc }) {
     </div>
   );
 }
+
 function TextInput({ label, value, onChange, placeholder, type, desc, mono }) {
   return (
     <div className="space-y-1">
@@ -310,6 +392,7 @@ function TextInput({ label, value, onChange, placeholder, type, desc, mono }) {
     </div>
   );
 }
+
 function NumInput({ label, value, onChange, min, max, step, desc }) {
   return (
     <div className="space-y-1">
@@ -320,6 +403,7 @@ function NumInput({ label, value, onChange, min, max, step, desc }) {
     </div>
   );
 }
+
 function SelectBox({ label, value, onChange, options, desc }) {
   return (
     <div className="space-y-1">
@@ -332,6 +416,7 @@ function SelectBox({ label, value, onChange, options, desc }) {
     </div>
   );
 }
+
 function Section({ title }) {
   return <p className="text-zinc-500 text-xs uppercase tracking-wider font-bold px-1 pt-3 pb-1 border-t border-zinc-800/50 mt-2">{title}</p>;
 }
@@ -357,7 +442,82 @@ function Tip({ label, tip, children }) {
   );
 }
 
-// ── Main App ────────────────────────────────────────────────────────
+// ── Validator panel ───────────────────────────────────────────────────
+function ValidatorPanel({ cfg, onDismissErrors, errorsAcknowledged }) {
+  const { errors, warnings } = useMemo(() => validateConfig(cfg), [cfg]);
+  const allClear = errors.length === 0 && warnings.length === 0;
+  const hasBlockers = errors.length > 0 && !errorsAcknowledged;
+
+  if (allClear) {
+    return (
+      <div className="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/30 rounded-xl px-4 py-3">
+        <span className="text-emerald-400 text-base">✓</span>
+        <div>
+          <p className="text-emerald-400 text-sm font-semibold">Config looks good</p>
+          <p className="text-emerald-500/60 text-xs">No issues found. Ready to download.</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      {/* Errors */}
+      {errors.length > 0 && (
+        <div className={"rounded-xl border overflow-hidden " + (errorsAcknowledged ? "border-zinc-700" : "border-red-500/40")}>
+          <div className={"flex items-center justify-between px-3 py-2 " + (errorsAcknowledged ? "bg-zinc-800/60" : "bg-red-500/10")}>
+            <div className="flex items-center gap-2">
+              <span className={"text-sm " + (errorsAcknowledged ? "text-zinc-500" : "text-red-400")}>
+                {errorsAcknowledged ? "⚠" : "✕"}
+              </span>
+              <span className={"text-xs font-bold uppercase tracking-wider " + (errorsAcknowledged ? "text-zinc-500" : "text-red-400")}>
+                {errors.length} issue{errors.length > 1 ? "s" : ""} found
+                {errorsAcknowledged && " (acknowledged)"}
+              </span>
+            </div>
+            {!errorsAcknowledged && (
+              <button
+                onClick={onDismissErrors}
+                className="text-xs text-red-400/70 hover:text-red-300 border border-red-500/30 hover:border-red-400/50 rounded px-2 py-0.5 transition-all">
+                Acknowledge &amp; proceed anyway
+              </button>
+            )}
+          </div>
+          <div className="divide-y divide-zinc-800/60">
+            {errors.map((e) => (
+              <div key={e.id} className="flex items-start gap-2 px-3 py-2">
+                <span className={"text-xs mt-0.5 shrink-0 " + (errorsAcknowledged ? "text-zinc-600" : "text-red-500")}>•</span>
+                <p className={"text-xs leading-relaxed " + (errorsAcknowledged ? "text-zinc-600" : "text-red-300")}>{e.msg}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Warnings */}
+      {warnings.length > 0 && (
+        <div className="rounded-xl border border-amber-500/30 overflow-hidden">
+          <div className="flex items-center gap-2 px-3 py-2 bg-amber-500/8">
+            <span className="text-amber-400 text-sm">!</span>
+            <span className="text-amber-400 text-xs font-bold uppercase tracking-wider">
+              {warnings.length} warning{warnings.length > 1 ? "s" : ""}
+            </span>
+          </div>
+          <div className="divide-y divide-zinc-800/60">
+            {warnings.map((w) => (
+              <div key={w.id} className="flex items-start gap-2 px-3 py-2">
+                <span className="text-amber-500 text-xs mt-0.5 shrink-0">•</span>
+                <p className="text-amber-200/60 text-xs leading-relaxed">{w.msg}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Main App ──────────────────────────────────────────────────────────
 function PwnConfig() {
   const [step, setStep] = useState(0);
   const [displaySearch, setDisplaySearch] = useState("");
@@ -365,11 +525,12 @@ function PwnConfig() {
   const [whitelistInput, setWhitelistInput] = useState("");
   const [copied, setCopied] = useState(false);
   const [confirmRestart, setConfirmRestart] = useState(false);
-  const [writeStatus, setWriteStatus] = useState(null); // null | "writing" | "done" | "error" | "unsupported"
+  const [writeStatus, setWriteStatus] = useState(null);
   const [showPwnstore, setShowPwnstore] = useState(false);
   const [syncStatus, setSyncStatus] = useState("loading");
   const [lastSynced, setLastSynced] = useState(null);
   const [remotePlugins, setRemotePlugins] = useState(null);
+  const [errorsAcknowledged, setErrorsAcknowledged] = useState(false);
 
   const [cfg, setCfg] = useState({
     name: "", lang: "en",
@@ -386,10 +547,12 @@ function PwnConfig() {
     web: { auth: false, username: "changeme", password: "changeme" }
   });
 
-  // ── Fetch + cache defaults.toml from GitHub ────────────────────────
+  // Reset acknowledgement whenever cfg changes so new errors re-surface
+  useEffect(() => { setErrorsAcknowledged(false); }, [cfg]);
+
+  // ── Fetch + cache defaults.toml ────────────────────────────────────
   useEffect(() => {
     async function loadDefaults() {
-      // Try cache first
       try {
         const cached = await window.storage.get(CACHE_KEY);
         if (cached) {
@@ -401,9 +564,7 @@ function PwnConfig() {
             return;
           }
         }
-      } catch (e) { /* no cache */ }
-
-      // Fetch from GitHub
+      } catch (e) {}
       await fetchFromGitHub();
     }
     loadDefaults();
@@ -417,13 +578,8 @@ function PwnConfig() {
       const text = await resp.text();
       const parsed = parseToml(text);
       const plugins = extractPlugins(parsed);
-
-      // Cache it
       const now = Date.now();
-      try {
-        await window.storage.set(CACHE_KEY, JSON.stringify({ plugins, ts: now }));
-      } catch (e) { /* storage might not be available */ }
-
+      try { await window.storage.set(CACHE_KEY, JSON.stringify({ plugins, ts: now })); } catch (e) {}
       applyRemotePlugins(plugins);
       setLastSynced(new Date(now));
       setSyncStatus("synced");
@@ -440,9 +596,7 @@ function PwnConfig() {
       if (Object.keys(prev.plugins).length > 0) return prev;
       const next = { ...prev, plugins: {} };
       Object.keys(plugins).forEach((name) => {
-        if (name === "bt-tether") return; // skip, being replaced
         next.plugins[name] = { ...plugins[name] };
-        // Clear secret defaults
         Object.keys(next.plugins[name]).forEach((k) => {
           if (SECRET_KEYS.includes(k) && typeof next.plugins[name][k] === "string") {
             next.plugins[name][k] = "";
@@ -457,21 +611,28 @@ function PwnConfig() {
     const fallback = {
       "auto-tune": { enabled: true },
       "auto_backup": { enabled: true, backup_location: "/home/pi/backups" },
-      "auto-update": { enabled: true, install: true, interval: 1 },
-      "fix_services": { enabled: true }, "cache": { enabled: true },
-      "grid": { enabled: true, report: true }, "webcfg": { enabled: true },
+      "auto-update": { enabled: true, install: true, interval: 1, token: "" },
+      "bt-tether": { enabled: false, "phone-name": "", mac: "", phone: "", ip: "", gateway: "", dns: "8.8.8.8 1.1.1.1" },
+      "fix_services": { enabled: true },
+      "cache": { enabled: true },
+      "gdrivesync": { enabled: false, backupfiles: [""], backup_folder: "PwnagotchiBackups", interval: 1 },
+      "gpio_buttons": { enabled: false },
       "gps": { enabled: false, speed: 19200, device: "/dev/ttyUSB0" },
       "gps_listener": { enabled: false },
-      "session-stats": { enabled: false, save_directory: "/var/tmp/pwnagotchi/sessions/" },
-      "memtemp": { enabled: false, scale: "celsius", orientation: "horizontal" },
-      "wpa-sec": { enabled: false, api_key: "", api_url: "https://wpa-sec.stanev.org", download_results: false, show_pwd: false },
-      "wigle": { enabled: false, api_key: "", donate: false, timeout: 30 },
-      "pisugarx": { enabled: false, lowpower_shutdown: true, lowpower_shutdown_level: 10 },
-      "webgpsmap": { enabled: false },
-      "ohcapi": { enabled: false, api_key: "", receive_email: "yes" },
+      "grid": { enabled: true, report: true },
       "logtail": { enabled: false, "max-lines": 10000 },
+      "memtemp": { enabled: false, scale: "celsius", orientation: "horizontal" },
+      "ohcapi": { enabled: false, api_key: "", receive_email: "yes" },
+      "pwndroid": { enabled: false, gateway: "", display: false, display_altitude: false },
+      "pisugarx": { enabled: false, rotation: false, default_display: "percentage", lowpower_shutdown: true, lowpower_shutdown_level: 10, max_charge_voltage_protection: false },
       "pwncrack": { enabled: false, key: "" },
-      "gdrivesync": { enabled: false, backup_folder: "PwnagotchiBackups", interval: 1 }
+      "session-stats": { enabled: false, save_directory: "/var/tmp/pwnagotchi/sessions/" },
+      "ups_hat_c": { enabled: false, label_on: true, shutdown: 5, bat_x_coord: 140, bat_y_coord: 0 },
+      "ups_lite": { enabled: false, shutdown: 2 },
+      "webcfg": { enabled: true },
+      "webgpsmap": { enabled: false },
+      "wigle": { enabled: false, api_key: "", cvs_dir: "/tmp", donate: false, timeout: 30, position: [7, 85] },
+      "wpa-sec": { enabled: false, api_key: "", api_url: "https://wpa-sec.stanev.org", download_results: false, show_pwd: false, single_files: false },
     };
     applyRemotePlugins(fallback);
   }
@@ -511,7 +672,6 @@ function PwnConfig() {
       invert: false, whitelist: [],
       personality: { advertise: true, deauth: true, associate: true, channels: [], min_rssi: -200, ap_ttl: 120, sta_ttl: 300, recon_time: 30, hop_recon_time: 10, min_recon_time: 5, max_interactions: 3, max_misses_for_recon: 5, excited_num_epochs: 10, bored_num_epochs: 15, sad_num_epochs: 25, bond_encounters_factor: 20000, throttle_a: 0.4, throttle_d: 0.9 },
       plugins: remotePlugins ? Object.keys(remotePlugins).reduce((acc, name) => {
-        if (name === "bt-tether") return acc;
         acc[name] = { ...remotePlugins[name] };
         Object.keys(acc[name]).forEach((k) => { if (SECRET_KEYS.includes(k) && typeof acc[name][k] === "string") acc[name][k] = ""; });
         return acc;
@@ -534,7 +694,12 @@ function PwnConfig() {
 
   const toml = useMemo(() => buildToml(cfg), [cfg]);
 
+  // Validate for gating download/copy
+  const validation = useMemo(() => validateConfig(cfg), [cfg]);
+  const canProceed = validation.errors.length === 0 || errorsAcknowledged;
+
   const doDownload = () => {
+    if (!canProceed) return;
     const blob = new Blob([toml], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a"); a.href = url; a.download = "config.toml";
@@ -543,23 +708,18 @@ function PwnConfig() {
   };
 
   const doCopy = () => {
+    if (!canProceed) return;
     const ta = document.createElement("textarea"); ta.value = toml; ta.style.position = "fixed"; ta.style.opacity = "0";
     document.body.appendChild(ta); ta.select(); document.execCommand("copy"); document.body.removeChild(ta);
     setCopied(true); setTimeout(() => setCopied(false), 2000);
   };
 
   const doWriteToBoot = async () => {
-    // Check if File System Access API is available
-    if (!window.showDirectoryPicker) {
-      setWriteStatus("unsupported");
-      setTimeout(() => setWriteStatus(null), 4000);
-      return;
-    }
+    if (!canProceed) return;
+    if (!window.showDirectoryPicker) { setWriteStatus("unsupported"); setTimeout(() => setWriteStatus(null), 4000); return; }
     try {
       setWriteStatus("writing");
-      // User picks the boot partition folder
       const dirHandle = await window.showDirectoryPicker({ mode: "readwrite", startIn: "desktop" });
-      // Write config.toml to selected folder
       const fileHandle = await dirHandle.getFileHandle("config.toml", { create: true });
       const writable = await fileHandle.createWritable();
       await writable.write(toml);
@@ -568,18 +728,11 @@ function PwnConfig() {
       setTimeout(() => setWriteStatus(null), 5000);
       setShowPwnstore(true);
     } catch (e) {
-      if (e.name === "AbortError") {
-        // User cancelled the picker
-        setWriteStatus(null);
-      } else {
-        console.error("Write failed:", e);
-        setWriteStatus("error");
-        setTimeout(() => setWriteStatus(null), 4000);
-      }
+      if (e.name === "AbortError") { setWriteStatus(null); } else { setWriteStatus("error"); setTimeout(() => setWriteStatus(null), 4000); }
     }
   };
 
-  // ── Dynamic plugin renderer ───────────────────────────────────────
+  // ── Plugin renderer ───────────────────────────────────────────────
   function renderPluginToggle(name) {
     if (!cfg.plugins[name]) return null;
     const meta = PLUGIN_META[name] || { desc: "" };
@@ -587,7 +740,6 @@ function PwnConfig() {
     const opts = cfg.plugins[name];
     const extraKeys = Object.keys(opts).filter((k) => k !== "enabled");
     const isOn = opts.enabled;
-
     return (
       <div key={name}>
         <Toggle checked={isOn} onChange={(v) => updatePlug(name, "enabled", v)} label={name} desc={meta.desc || name} />
@@ -596,6 +748,7 @@ function PwnConfig() {
             {extraKeys.map((k) => {
               const v = opts[k];
               const isSecret = SECRET_KEYS.includes(k);
+              if (Array.isArray(v)) return <p key={k} className="text-zinc-600 text-xs font-mono">{k} = [{v.join(", ")}] <span className="text-zinc-700">(edit in generated config)</span></p>;
               if (typeof v === "boolean") return <Toggle key={k} checked={v} onChange={(val) => updatePlug(name, k, val)} label={k.replace(/_/g, " ")} />;
               if (typeof v === "number") return <NumInput key={k} label={k} value={v} onChange={(val) => updatePlug(name, k, val)} min={0} max={99999} />;
               if (typeof v === "string") return <TextInput key={k} label={k} value={v} onChange={(val) => updatePlug(name, k, val)} placeholder={isSecret ? "Enter your key..." : v} mono={isSecret} type={isSecret ? "password" : "text"} />;
@@ -710,16 +863,16 @@ function PwnConfig() {
           <Tip label="Hop Recon (s)" tip="How long to listen on each channel while hopping. Lower = faster scanning across channels, higher = better chance of catching traffic on each one.">
             <NumInput value={cfg.personality.hop_recon_time} onChange={(v) => update("personality.hop_recon_time", v)} min={1} max={60} />
           </Tip>
-          <Tip label="Min RSSI" tip="Minimum signal strength to bother attacking. -200 = attack everything regardless of distance. -70 = only attack nearby strong signals. Useful to avoid wasting time on far-away networks.">
+          <Tip label="Min RSSI" tip="Minimum signal strength to bother attacking. -200 = attack everything regardless of distance. -70 = only attack nearby strong signals.">
             <NumInput value={cfg.personality.min_rssi} onChange={(v) => update("personality.min_rssi", v)} min={-200} max={0} />
           </Tip>
-          <Tip label="Max Interactions" tip="Maximum number of deauth/associate attempts per access point per epoch. Higher = more aggressive but noisier. Lower = stealthier.">
+          <Tip label="Max Interactions" tip="Maximum number of deauth/associate attempts per access point per epoch. Higher = more aggressive but noisier.">
             <NumInput value={cfg.personality.max_interactions} onChange={(v) => update("personality.max_interactions", v)} min={1} max={20} />
           </Tip>
-          <Tip label="AP TTL (s)" tip="Access Point Time-To-Live. How long (seconds) pwnagotchi remembers a seen access point before forgetting it. After this time, it will treat the AP as new if seen again.">
+          <Tip label="AP TTL (s)" tip="Access Point Time-To-Live. How long (seconds) pwnagotchi remembers a seen access point before forgetting it.">
             <NumInput value={cfg.personality.ap_ttl} onChange={(v) => update("personality.ap_ttl", v)} min={30} max={600} />
           </Tip>
-          <Tip label="STA TTL (s)" tip="Station (client) Time-To-Live. How long (seconds) pwnagotchi remembers a WiFi client device. Clients that disappear for longer than this are forgotten and treated as new targets.">
+          <Tip label="STA TTL (s)" tip="Station (client) Time-To-Live. How long (seconds) pwnagotchi remembers a WiFi client device.">
             <NumInput value={cfg.personality.sta_ttl} onChange={(v) => update("personality.sta_ttl", v)} min={30} max={600} />
           </Tip>
         </div>
@@ -738,14 +891,13 @@ function PwnConfig() {
         </div>
       </div>
     );
-    // PLUGINS (dynamic!)
+    // PLUGINS
     if (step === 4) {
       const groups = ["Core", "Maintenance", "GPS", "Cracking", "WiGLE", "Cloud", "Hardware"];
       const uncategorised = Object.keys(cfg.plugins).filter((n) => { const m = PLUGIN_META[n]; return !m || (!groups.includes(m.group) && m.group !== "hidden"); });
       return (
         <div className="space-y-2">
           <div><h2 className="text-xl font-bold text-zinc-100 mb-1">Plugins</h2><p className="text-zinc-500 text-sm">Toggle plugins and configure their settings. Synced from GitHub defaults.toml</p></div>
-          {/* Sync status */}
           <div className="flex items-center justify-between bg-zinc-900/50 rounded-lg px-3 py-2 border border-zinc-800">
             <div className="flex items-center gap-2">
               <span className={"w-2 h-2 rounded-full " + (syncStatus === "synced" ? "bg-emerald-500" : syncStatus === "cached" ? "bg-blue-500" : syncStatus === "fetching" ? "bg-yellow-500 animate-pulse" : "bg-zinc-600")} />
@@ -786,29 +938,53 @@ function PwnConfig() {
     // GENERATE
     if (step === 6) return (
       <div className="space-y-5">
-        <div><h2 className="text-xl font-bold text-zinc-100 mb-1">Your Config</h2><p className="text-zinc-500 text-sm">Complete config ready to use. Download and install using one of the methods below.</p></div>
+        <div><h2 className="text-xl font-bold text-zinc-100 mb-1">Your Config</h2><p className="text-zinc-500 text-sm">Complete config ready to use.</p></div>
+
+        {/* ── Validator ── */}
+        <ValidatorPanel
+          cfg={cfg}
+          errorsAcknowledged={errorsAcknowledged}
+          onDismissErrors={() => setErrorsAcknowledged(true)}
+        />
+
+        {/* Config preview */}
         <div className="bg-zinc-950 border border-zinc-800 rounded-xl overflow-hidden">
           <div className="flex items-center justify-between px-3 py-2 bg-zinc-900 border-b border-zinc-800">
             <span className="text-zinc-500 text-xs font-mono">config.toml</span>
-            <button onClick={doCopy} className="text-zinc-500 hover:text-zinc-300 text-xs transition-colors">{copied ? "Copied!" : "Copy"}</button>
+            <button
+              onClick={doCopy}
+              disabled={!canProceed}
+              className={"text-xs transition-colors " + (canProceed ? "text-zinc-500 hover:text-zinc-300" : "text-zinc-700 cursor-not-allowed")}>
+              {copied ? "Copied!" : canProceed ? "Copy" : "Fix issues to copy"}
+            </button>
           </div>
           <pre className="p-4 text-xs font-mono text-emerald-400/80 overflow-x-auto max-h-64 overflow-y-auto leading-relaxed whitespace-pre-wrap">{toml}</pre>
         </div>
+
+        {/* Action buttons */}
         <div className="grid grid-cols-2 gap-3">
-          <button onClick={doWriteToBoot}
-            className={"w-full py-3 font-bold rounded-xl transition-colors text-sm " + (writeStatus === "done" ? "bg-emerald-600 text-white" : writeStatus === "writing" ? "bg-zinc-700 text-zinc-400" : "bg-blue-600 hover:bg-blue-500 text-white")}>
-            {writeStatus === "writing" ? "Select boot partition..." : writeStatus === "done" ? "Written to SD!" : writeStatus === "error" ? "Write failed" : writeStatus === "unsupported" ? "Not supported (use Download)" : "Write to SD Card"}
+          <button
+            onClick={doWriteToBoot}
+            disabled={!canProceed}
+            className={"w-full py-3 font-bold rounded-xl transition-colors text-sm " + (!canProceed ? "bg-zinc-800 text-zinc-600 cursor-not-allowed" : writeStatus === "done" ? "bg-emerald-600 text-white" : writeStatus === "writing" ? "bg-zinc-700 text-zinc-400" : "bg-blue-600 hover:bg-blue-500 text-white")}>
+            {!canProceed ? "Resolve issues first" : writeStatus === "writing" ? "Select boot partition..." : writeStatus === "done" ? "Written to SD!" : writeStatus === "error" ? "Write failed" : writeStatus === "unsupported" ? "Not supported (use Download)" : "Write to SD Card"}
           </button>
-          <button onClick={doDownload} className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl transition-colors text-sm">Download config.toml</button>
+          <button
+            onClick={doDownload}
+            disabled={!canProceed}
+            className={"w-full py-3 font-bold rounded-xl transition-colors text-sm " + (canProceed ? "bg-emerald-600 hover:bg-emerald-500 text-white" : "bg-zinc-800 text-zinc-600 cursor-not-allowed")}>
+            {canProceed ? "Download config.toml" : "Resolve issues first"}
+          </button>
         </div>
+
         {writeStatus === "done" && (
           <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-3">
-            <p className="text-emerald-400 text-xs"><strong>config.toml written!</strong> Safely eject the SD card, insert into your Pi, and boot. Pwnagotchi will pick up the config automatically.</p>
+            <p className="text-emerald-400 text-xs"><strong>config.toml written!</strong> Safely eject the SD card, insert into your Pi, and boot.</p>
           </div>
         )}
         {writeStatus === "unsupported" && (
           <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3">
-            <p className="text-amber-400 text-xs"><strong>Browser not supported.</strong> Write to SD requires Chrome or Edge. Use the Download button instead and copy config.toml to the boot partition manually.</p>
+            <p className="text-amber-400 text-xs"><strong>Browser not supported.</strong> Write to SD requires Chrome or Edge. Use Download instead.</p>
           </div>
         )}
 
@@ -825,13 +1001,11 @@ function PwnConfig() {
           </a>
         )}
 
-        {/* How config merging works */}
+        {/* Install instructions */}
         <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-4 space-y-1">
           <p className="text-zinc-400 text-xs font-bold uppercase tracking-wider">How this works</p>
-          <p className="text-zinc-600 text-xs">This generates a complete config. Pwnagotchi loads defaults.toml first, then merges your config.toml on top. Values you set here override defaults.</p>
+          <p className="text-zinc-600 text-xs">This generates a complete config. Pwnagotchi loads defaults.toml first, then merges your config.toml on top.</p>
         </div>
-
-        {/* INSTALL: v2.9.5.4+ Boot partition (RECOMMENDED) */}
         <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-4 space-y-2">
           <div className="flex items-center gap-2">
             <span className="bg-emerald-500/20 text-emerald-400 text-xs font-bold px-2 py-0.5 rounded">RECOMMENDED</span>
@@ -845,10 +1019,7 @@ function PwnConfig() {
             <p>4. Safely eject SD card, insert into Pi, and boot (first boot 2-3 min)</p>
           </div>
           <p className="text-zinc-600 text-xs">Pwnagotchi auto-detects config on /boot/firmware/ and moves it to /etc/pwnagotchi/config.toml on first boot.</p>
-          <p className="text-zinc-600 text-xs"><span className="text-zinc-500">Write to SD</span> works in Chrome and Edge. Firefox/Safari users: use Download and copy manually.</p>
         </div>
-
-        {/* INSTALL: v2.9.5.4+ SSH */}
         <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-4 space-y-2">
           <p className="text-zinc-400 text-xs font-bold uppercase tracking-wider">SSH Method (v2.9.5.4+)</p>
           <div className="space-y-1.5 text-zinc-500 text-xs font-mono">
@@ -859,21 +1030,15 @@ function PwnConfig() {
             <p>5. <span className="text-emerald-400">scp config.toml pi@pwnagotchi.local:/etc/pwnagotchi/config.toml</span></p>
             <p>6. Restart: <span className="text-emerald-400">pwnkill</span></p>
           </div>
-          <p className="text-zinc-600 text-xs">If you changed the hostname, use: ssh pi@yourhostname.local</p>
-          <p className="text-zinc-600 text-xs">Or edit in place: <span className="text-emerald-400">config</span> (opens nano editor)</p>
         </div>
-
-        {/* INSTALL: Pre-2.9.5.4 SSH */}
         <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-4 space-y-2">
           <p className="text-zinc-400 text-xs font-bold uppercase tracking-wider">SSH Method (Pre-2.9.5.4)</p>
           <div className="space-y-1.5 text-zinc-500 text-xs font-mono">
             <p>1. Connect Pi via USB data cable</p>
-            <p>2. Install RNDIS driver (Windows) or set IP manually</p>
-            <p>3. Set your computer's USB network IP to <span className="text-zinc-300">10.0.0.1</span></p>
-            <p>4. <span className="text-emerald-400">ssh pi@10.0.0.2</span></p>
-            <p>5. Password: <span className="text-zinc-300">raspberry</span></p>
-            <p>6. <span className="text-emerald-400">scp config.toml pi@10.0.0.2:/etc/pwnagotchi/config.toml</span></p>
-            <p>7. Restart: <span className="text-emerald-400">sudo systemctl restart pwnagotchi</span></p>
+            <p>2. Set your computer's USB network IP to <span className="text-zinc-300">10.0.0.1</span></p>
+            <p>3. <span className="text-emerald-400">ssh pi@10.0.0.2</span> — Password: <span className="text-zinc-300">raspberry</span></p>
+            <p>4. <span className="text-emerald-400">scp config.toml pi@10.0.0.2:/etc/pwnagotchi/config.toml</span></p>
+            <p>5. Restart: <span className="text-emerald-400">sudo systemctl restart pwnagotchi</span></p>
           </div>
           <p className="text-zinc-600 text-xs">Consider upgrading to v2.9.5.4+ for much easier setup!</p>
         </div>
@@ -882,7 +1047,11 @@ function PwnConfig() {
     return null;
   };
 
-  // ── Layout ────────────────────────────────────────────────────────
+  // ── Layout ─────────────────────────────────────────────────────────
+  // Show validation badge on Generate nav pip if there are issues
+  const { errors: liveErrors, warnings: liveWarnings } = useMemo(() => validateConfig(cfg), [cfg]);
+  const hasIssues = liveErrors.length > 0 || liveWarnings.length > 0;
+
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-200">
       <div className="max-w-xl mx-auto px-4 py-6">
@@ -895,17 +1064,25 @@ function PwnConfig() {
           <a href="https://buymeacoffee.com/wpa2" target="_blank" rel="noopener noreferrer"
             className="inline-block text-zinc-600 text-xs border border-zinc-800 rounded px-2 py-0.5 hover:text-emerald-400 hover:border-emerald-500/40 transition-all">| WPA2 |</a>
         </div>
-        <div className="flex items-center gap-1 mb-6 px-1">
+
+        {/* Progress pips */}
+        <div className="flex items-center gap-1 mb-1 px-1">
           {STEP_NAMES.map((s, i) => (
             <button key={s} onClick={() => setStep(i)} title={s}
-              className={"flex-1 rounded-full transition-all " + (i <= step ? "bg-emerald-500" : "bg-zinc-800") + (i === step ? " h-2" : " h-1.5")} />
+              className={"flex-1 rounded-full transition-all " + (i <= step ? (i === 6 && hasIssues && !errorsAcknowledged ? "bg-amber-500" : "bg-emerald-500") : "bg-zinc-800") + (i === step ? " h-2" : " h-1.5")} />
           ))}
         </div>
-        <div className="flex justify-between items-center mb-4 px-1">
-          <span className="text-zinc-600 text-xs">Step {step + 1} / {STEP_NAMES.length}</span>
-          <span className="text-zinc-500 text-xs font-medium">{STEP_NAMES[step]}</span>
+        {/* Step labels */}
+        <div className="flex items-center gap-1 mb-5 px-1">
+          {STEP_NAMES.map((s, i) => (
+            <div key={s} className="flex-1 text-center">
+              {i === step && <span className={"text-xs font-medium " + (i === 6 && hasIssues && !errorsAcknowledged ? "text-amber-400" : "text-zinc-500")}>{s}</span>}
+            </div>
+          ))}
         </div>
+
         <div className="bg-zinc-900/40 border border-zinc-800/80 rounded-2xl p-5 min-h-96">{renderContent()}</div>
+
         <div className="flex justify-between mt-4 gap-3">
           <button onClick={() => setStep(Math.max(0, step - 1))} disabled={step === 0}
             className={"px-5 py-2.5 rounded-xl text-sm font-medium transition-all " + (step === 0 ? "text-zinc-700 cursor-not-allowed" : "text-zinc-400 hover:text-zinc-200 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800")}>Back</button>
@@ -913,7 +1090,8 @@ function PwnConfig() {
             className={"px-5 py-2.5 rounded-xl text-sm font-medium transition-all border " + (confirmRestart ? "text-red-400 bg-red-500/10 border-red-500/40 hover:bg-red-500/20" : "text-amber-400 hover:text-amber-300 bg-zinc-900 hover:bg-zinc-800 border-zinc-800 hover:border-amber-500/30")}>{confirmRestart ? "Sure? Click again" : "Restart"}</button>
           {step < STEP_NAMES.length - 1
             ? <button onClick={() => setStep(step + 1)} className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold rounded-xl transition-colors">Next</button>
-            : <button onClick={doDownload} className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold rounded-xl transition-colors">Download</button>
+            : <button onClick={doDownload} disabled={!canProceed}
+                className={"px-5 py-2.5 text-sm font-bold rounded-xl transition-colors " + (canProceed ? "bg-emerald-600 hover:bg-emerald-500 text-white" : "bg-zinc-800 text-zinc-600 cursor-not-allowed")}>Download</button>
           }
         </div>
       </div>
