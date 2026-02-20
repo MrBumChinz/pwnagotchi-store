@@ -86,7 +86,7 @@
     "author": "wsvdmeer",
     "category": "Display",
     "origin_type": "zip",
-    "download_url": "https://github.com/wsvdmeer/pwnagotchi-plugins//archive/main.zip",
+    "download_url": "https://github.com/wsvdmeer/pwnagotchi-plugins/archive/main.zip",
     "path_inside_zip": "pwnagotchi-plugins-main/bt-tether-helper/bt-tether-helper.py"
   },
   {
@@ -221,7 +221,7 @@
   },
   {
     "name": "git_backup",
-    "version": "2.0.0",
+    "version": "2.1.0",
     "description": "Simple Git backup for Pwnagotchi - mirrors files to GitHub with auto-restore script",
     "author": "WPA2",
     "category": "System",
@@ -466,7 +466,7 @@
     "author": "wsvdmeer",
     "category": "Display",
     "origin_type": "zip",
-    "download_url": "https://github.com/wsvdmeer/pwnagotchi-plugins//archive/main.zip",
+    "download_url": "https://github.com/wsvdmeer/pwnagotchi-plugins/archive/main.zip",
     "path_inside_zip": "pwnagotchi-plugins-main/rtc-datetime/rtc-datetime.py"
   },
   {
