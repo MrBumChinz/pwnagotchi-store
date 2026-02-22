@@ -21,7 +21,7 @@
   },
   {
     "name": "auto_backup",
-    "version": "2.3",
+    "version": "2.2",
     "description": "Backs up Pwnagotchi configuration and data, keeping recent backups.",
     "author": "WPA2",
     "category": "System",
