@@ -11,7 +11,7 @@
   },
   {
     "name": "age",
-    "version": "3.1.0",
+    "version": "4.0.0",
     "description": "No description provided.",
     "author": "AlienMajik",
     "category": "Display",
@@ -411,8 +411,8 @@
   },
   {
     "name": "probenpwn",
-    "version": "1.9.1",
-    "description": "No description provided.",
+    "version": "2.0.0",
+    "description": "Ultra\u2011aggressive handshake/PMKID capture v2.0 \u2013 adaptive modes, UCB1, vendor targeting, PMF bypass, stealth, rate limiting, external tool fallback, per\u2011UI toggles.",
     "author": "AlienMajik",
     "category": "Attack",
     "origin_type": "zip",
