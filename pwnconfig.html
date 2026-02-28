@@ -8,7 +8,19 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
-  <style>body{margin:0;background:#09090b;}</style>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+  <style>
+    body { margin: 0; background: #121212; }
+    .pwn-nav { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; margin: 12px 0 16px 0; }
+    .pwn-nav-link {
+      font-family: 'VT323', monospace; font-size: 1.2rem; color: #888;
+      border: 1px solid #333; padding: 3px 10px; border-radius: 4px;
+      transition: all 0.2s; background: #1a1a1a; text-decoration: none; display: inline-block;
+    }
+    .pwn-nav-link:hover { color: #000; background: #00FF00; border-color: #00FF00; transform: translateY(-2px); }
+  </style>
 </head>
 <body>
   <div id="root"></div>
@@ -798,7 +810,7 @@ function PwnConfig() {
           )}
         </div>
         <div className="bg-zinc-900/50 rounded-xl p-4 border border-zinc-800">
-          <span className="text-zinc-500 text-sm mr-2">(^_^)</span>
+          <span className="text-zinc-500 text-sm mr-2">(◕‿‿◕)</span>
           <span className="font-mono text-emerald-400 text-lg">{cfg.name || "pwnagotchi"}</span>
           <span className="text-zinc-600 text-lg font-mono">&gt;</span>
         </div>
@@ -1014,7 +1026,7 @@ function PwnConfig() {
             className="block bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4 hover:bg-emerald-500/20 hover:border-emerald-400/50 transition-all group">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-emerald-400 text-sm font-bold group-hover:text-emerald-300">(^_^) Config saved! Now grab some plugins</p>
+                <p className="text-emerald-400 text-sm font-bold group-hover:text-emerald-300">(◕‿‿◕) Config saved! Now grab some plugins</p>
                 <p className="text-zinc-500 text-xs mt-1">Visit PwnStore to browse and install community plugins</p>
               </div>
               <span className="text-emerald-500/50 group-hover:text-emerald-400 text-lg">→</span>
@@ -1076,21 +1088,24 @@ function PwnConfig() {
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-200">
       <div className="max-w-xl mx-auto px-4 py-6">
-        <div className="text-center mb-6">
-          <div className="flex items-center justify-center gap-2 mb-1">
-            <span className="text-2xl">(^_^)</span>
-            <h1 className="text-2xl font-black tracking-tight text-zinc-100">Pwn<span className="text-emerald-400">Config</span></h1>
+        <div className="text-center mb-2">
+          <div style={{fontFamily: "'Arial', sans-serif", fontSize: "2.8rem", color: "#e0e0e0", textShadow: "0 0 15px rgba(0,255,0,0.3)", marginBottom: "2px"}}>
+            (◕‿‿◕)
           </div>
-          <p className="text-zinc-500 text-xs mb-2">Pwnagotchi Config Generator</p>
-          <div className="flex items-center justify-center gap-2">
-            <a href="https://pwnstore.org/troubleshoot.html" target="_blank" rel="noopener noreferrer"
-              className="inline-block text-zinc-600 text-xs border border-zinc-800 rounded px-2 py-0.5 hover:text-emerald-400 hover:border-emerald-500/40 transition-all">| Troubleshoot |</a>
-            <a href="https://buymeacoffee.com/wpa2" target="_blank" rel="noopener noreferrer"
-              className="inline-block text-zinc-600 text-xs border border-zinc-800 rounded px-2 py-0.5 hover:text-emerald-400 hover:border-emerald-500/40 transition-all">| WPA2 |</a>
-            <a href="https://pwnstore.org/" target="_blank" rel="noopener noreferrer"
-              className="inline-block text-zinc-600 text-xs border border-zinc-800 rounded px-2 py-0.5 hover:text-emerald-400 hover:border-emerald-500/40 transition-all">| PwnStore |</a>
+          <h1 style={{fontFamily: "'VT323', monospace", fontWeight: 400, margin: 0, fontSize: "3rem", color: "#fff", lineHeight: 0.9, textTransform: "uppercase", letterSpacing: "2px"}}>
+            Pwn<span style={{color: "#00FF00"}}>Config</span>
+          </h1>
+          <p style={{color: "#888", fontSize: "0.85rem", marginTop: "6px", letterSpacing: "1px", textTransform: "uppercase", fontWeight: 500}}>Config Generator</p>
+          <div style={{marginTop: "8px", fontSize: "0.85rem", color: "#00FF00", fontWeight: 500}}>
+            Built by <a href="https://github.com/wpa-2" target="_blank" style={{color: "#00FF00"}}>WPA2</a> &bull; <a href="https://buymeacoffee.com/wpa2" target="_blank" style={{color: "#00FF00"}}>☕ Buy me a coffee</a>
           </div>
         </div>
+
+        <nav className="pwn-nav">
+          <a href="index.html" className="pwn-nav-link">[PWNSTORE]</a>
+          <a href="troubleshoot.html" className="pwn-nav-link">[TROUBLESHOOT]</a>
+          <a href="socials.html" className="pwn-nav-link">[SOCIALS]</a>
+        </nav>
 
         {/* Progress pips */}
         <div className="flex items-center gap-1 mb-1 px-1">
