@@ -3,7 +3,7 @@
 PwnStore - The Unofficial Pwnagotchi App Store
 Author: WPA2
 Donations: https://buymeacoffee.com/wpa2
-v3.3.1 - Per-Plugin Update Control
+v3.3.2 - Dynamic plugin directory from config
 '''
 
 import requests
@@ -19,7 +19,8 @@ import re
 # --- CONFIGURATION ---
 DEFAULT_REGISTRY = "https://raw.githubusercontent.com/wpa-2/pwnagotchi-store/main/plugins.json"
 
-CUSTOM_PLUGIN_DIR = "/usr/local/share/pwnagotchi/custom-plugins/"
+# Fallback if config.toml has no custom_plugins entry
+DEFAULT_CUSTOM_PLUGIN_DIR = "/etc/pwnagotchi/custom-plugins/"
 CONFIG_FILE = "/etc/pwnagotchi/config.toml"
 
 # ANSI Colors
@@ -37,7 +38,7 @@ def banner():
     print(r" / ____/| |/ |/ / / / /___/ / /_/ /_/ / /  /  __/ ")
     print(r"/_/     |__/|__/_/ /_//____/\__/\____/_/    \___/  ")
     print(f"{RESET}")
-    print(f"  {CYAN}v3.3.1{RESET} - Per-Plugin Update Control")
+    print(f"  {CYAN}v3.3.2{RESET} - Dynamic plugin directory from config")
     print(f"  Support the dev: {GREEN}https://buymeacoffee.com/wpa2{RESET}\n")
 
 def check_sudo():
@@ -76,8 +77,8 @@ def get_local_version(file_path):
     return "0.0.0"
 
 def get_installed_plugins():
-    if not os.path.exists(CUSTOM_PLUGIN_DIR): return []
-    return [f.replace(".py", "") for f in os.listdir(CUSTOM_PLUGIN_DIR) if f.endswith(".py")]
+    if not os.path.exists(get_custom_plugin_dir()): return []
+    return [f.replace(".py", "") for f in os.listdir(get_custom_plugin_dir()) if f.endswith(".py")]
 
 def get_registry_url():
     """Checks config.toml for a developer override"""
@@ -89,6 +90,21 @@ def get_registry_url():
                 if match: return match.group(1)
     except: pass
     return DEFAULT_REGISTRY
+
+def get_custom_plugin_dir():
+    """Read the custom_plugins path from config.toml so pwnstore always installs
+    to wherever pwnagotchi is configured to load plugins from.
+    Falls back to DEFAULT_CUSTOM_PLUGIN_DIR if no config entry is found."""
+    try:
+        if os.path.exists(CONFIG_FILE):
+            with open(CONFIG_FILE, 'r') as f:
+                content = f.read()
+                # Handles both quoted forms: 'path' and "path"
+                match = re.search(r"main\.custom_plugins\s*=\s*[\"'](.+?)[\"']", content)
+                if match:
+                    return match.group(1).rstrip('/')
+    except: pass
+    return DEFAULT_CUSTOM_PLUGIN_DIR.rstrip('/')
 
 def fetch_registry():
     url = get_registry_url()
@@ -207,13 +223,13 @@ def update_plugins(args):
     check_sudo()
     print(f"[*] Checking for updates...")
     registry = fetch_registry()
-    installed_files = [f for f in os.listdir(CUSTOM_PLUGIN_DIR) if f.endswith(".py")]
+    installed_files = [f for f in os.listdir(get_custom_plugin_dir()) if f.endswith(".py")]
     updates_found = []
     for filename in installed_files:
         plugin_name = filename.replace(".py", "")
         remote_data = next((p for p in registry if p['name'] == plugin_name), None)
         if remote_data:
-            local_ver = get_local_version(os.path.join(CUSTOM_PLUGIN_DIR, filename))
+            local_ver = get_local_version(os.path.join(get_custom_plugin_dir(), filename))
             remote_ver = remote_data['version']
             if compare_versions(remote_ver, local_ver) > 0:
                 updates_found.append({"name": plugin_name, "local": local_ver, "remote": remote_ver, "data": remote_data})
@@ -264,7 +280,7 @@ def install_plugin(args):
     plugin_data = next((p for p in registry if p['name'] == args.name), None)
     if not plugin_data: return print(f"{RED}[!] Not found.{RESET}")
 
-    final_file_path = os.path.join(CUSTOM_PLUGIN_DIR, f"{args.name}.py")
+    final_file_path = os.path.join(get_custom_plugin_dir(), f"{args.name}.py")
     already_installed = os.path.exists(final_file_path)
     print(f"[*] Installing {CYAN}{args.name}{RESET}...")
 
@@ -276,7 +292,7 @@ def install_plugin(args):
                 shutil.copyfileobj(source, dest)
         else:
             r = requests.get(plugin_data['download_url'], timeout=30)
-            if not os.path.exists(CUSTOM_PLUGIN_DIR): os.makedirs(CUSTOM_PLUGIN_DIR)
+            if not os.path.exists(get_custom_plugin_dir()): os.makedirs(get_custom_plugin_dir())
             with open(final_file_path, "wb") as f: f.write(r.content)
 
         print(f"{GREEN}[+] Installed to {final_file_path}{RESET}")
@@ -293,7 +309,7 @@ def install_plugin(args):
 def uninstall_plugin(args):
     check_sudo()
     if not is_safe_name(args.name): return
-    file_path = os.path.join(CUSTOM_PLUGIN_DIR, f"{args.name}.py")
+    file_path = os.path.join(get_custom_plugin_dir(), f"{args.name}.py")
     if not os.path.exists(file_path): return
     try:
         os.remove(file_path)
@@ -331,7 +347,7 @@ def show_detailed_help():
     print(r" / ____/| |/ |/ / / / /___/ / /_/ /_/ / /  /  __/ ")
     print(r"/_/     |__/|__/_/ /_//____/\__/\____/_/    \___/  ")
     print(f"{RESET}\n")
-    print(f"{CYAN}PwnStore - Pwnagotchi Plugin Manager v3.3.1{RESET}\n")
+    print(f"{CYAN}PwnStore - Pwnagotchi Plugin Manager v3.3.2{RESET}\n")
     
     print(f"{YELLOW}BROWSE PLUGINS:{RESET}")
     print(f"  {CYAN}pwnstore list{RESET}                    List all available plugins")
