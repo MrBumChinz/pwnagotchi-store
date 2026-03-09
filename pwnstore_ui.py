@@ -28,7 +28,7 @@ except ImportError:
 
 class PwnStoreUI(plugins.Plugin):
     __author__ = 'WPA2'
-    __version__ = '1.2.6'
+    __version__ = '1.2.7'
     __license__ = 'GPL3'
     __description__ = 'Plugin store with web interface for browsing and installing plugins'
 
@@ -39,6 +39,21 @@ class PwnStoreUI(plugins.Plugin):
     def on_loaded(self):
         logging.info("[pwnstore_ui] Plugin loaded")
         self.ready = True
+
+    def _get_custom_plugin_dir(self):
+        """Read custom_plugins path from config.toml, matching pwnstore CLI behaviour."""
+        import re
+        config_file = "/etc/pwnagotchi/config.toml"
+        default = "/etc/pwnagotchi/custom-plugins"
+        try:
+            with open(config_file, 'r') as f:
+                cfg = f.read()
+            match = re.search(r"(?:main\.)?custom_plugins\s*=\s*[\"'](.+?)[\"']", cfg)
+            if match:
+                return match.group(1).rstrip('/')
+        except Exception:
+            pass
+        return default
 
     def on_webhook(self, path, request):
         """Handle web requests to /plugins/pwnstore_ui/"""
@@ -301,20 +316,35 @@ class PwnStoreUI(plugins.Plugin):
             data = request.get_json(force=True)
             name, vals = data.get('plugin'), data.get('config', {})
             config_file = "/etc/pwnagotchi/config.toml"
-            with open(config_file, 'r') as f: lines = f.readlines()
-            prefix = f"main.plugins.{name}."
-            new_lines = [l for l in lines if not l.strip().startswith(prefix)]
-            if new_lines and not new_lines[-1].endswith('\n'): new_lines[-1] += '\n'
-            new_lines.append(f"\n# PwnStore Configuration: {name}\n")
-            new_lines.append(f"{prefix}enabled = true\n")
+            section_header = f"[main.plugins.{name}]"
+            with open(config_file, 'r') as f:
+                lines = f.readlines()
+            # Remove existing section and all its keys
+            new_lines = []
+            inside_section = False
+            for line in lines:
+                stripped = line.strip()
+                if stripped == section_header:
+                    inside_section = True
+                    continue
+                if stripped.startswith("[") and inside_section:
+                    inside_section = False
+                if not inside_section:
+                    new_lines.append(line)
+            # Append new section in correct TOML format
+            if new_lines and not new_lines[-1].endswith('\n'):
+                new_lines[-1] += '\n'
+            new_lines.append(f"\n{section_header}\n")
+            new_lines.append("enabled = true\n")
             for k, v in vals.items():
                 if k == 'enabled': continue
                 v_str = str(v).strip()
                 if v_str.lower() in ['true', 'false'] or v_str.isdigit() or (v_str.startswith('[') and v_str.endswith(']')):
-                    new_lines.append(f"{prefix}{k} = {v_str.lower() if v_str.lower() in ['true', 'false'] else v_str}\n")
+                    new_lines.append(f"{k} = {v_str.lower() if v_str.lower() in ['true', 'false'] else v_str}\n")
                 else:
-                    new_lines.append(f'{prefix}{k} = "{v_str}"\n')
-            with open(config_file, 'w') as f: f.writelines(new_lines)
+                    new_lines.append(f'{k} = "{v_str}"\n')
+            with open(config_file, 'w') as f:
+                f.writelines(new_lines)
             return Response(json.dumps({'success': True}), mimetype='application/json')
         except Exception as e:
             return Response(json.dumps({'success': False, 'error': str(e)}), status=500)
@@ -324,7 +354,7 @@ class PwnStoreUI(plugins.Plugin):
         except: return Response("[]", mimetype='application/json')
 
     def _get_installed(self):
-        path = "/usr/local/share/pwnagotchi/custom-plugins"
+        path = self._get_custom_plugin_dir()
         if not os.path.exists(path): return Response("[]", mimetype='application/json')
         files = [f.replace('.py', '') for f in os.listdir(path) if f.endswith('.py')]
         return Response(json.dumps(files), mimetype='application/json')

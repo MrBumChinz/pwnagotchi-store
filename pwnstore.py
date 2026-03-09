@@ -100,7 +100,7 @@ def get_custom_plugin_dir():
             with open(CONFIG_FILE, 'r') as f:
                 content = f.read()
                 # Handles both quoted forms: 'path' and "path"
-                match = re.search(r"main\.custom_plugins\s*=\s*[\"'](.+?)[\"']", content)
+                match = re.search(r"(?:main\.)?custom_plugins\s*=\s*[\"'](.+?)[\"']", content)
                 if match:
                     return match.group(1).rstrip('/')
     except: pass
@@ -318,25 +318,32 @@ def uninstall_plugin(args):
     except: pass
 
 def update_config(plugin_name, enable=True):
-    """Prevents duplicates by cleaning the plugin's block."""
+    """Remove the plugin's entire TOML section then re-append if enabling.
+    Handles extra user config under the section without orphaning those lines."""
     try:
         if not os.path.exists(CONFIG_FILE): return
         with open(CONFIG_FILE, "r") as f: lines = f.readlines()
-        prefix = f"main.plugins.{plugin_name}."
-        new_lines = [l for l in lines if not l.strip().startswith(prefix)]
+        section_header = f"[main.plugins.{plugin_name}]"
+        new_lines = []
+        inside_section = False
+        for line in lines:
+            stripped = line.strip()
+            if stripped == section_header:
+                inside_section = True
+                continue
+            if stripped.startswith("[") and inside_section:
+                inside_section = False
+            if not inside_section:
+                new_lines.append(line)
         if enable:
             if new_lines and not new_lines[-1].endswith('\n'): new_lines[-1] += '\n'
-            new_lines.append(f"\n{prefix}enabled = true\n")
+            new_lines.append(f"\n{section_header}\nenabled = true\n")
         with open(CONFIG_FILE, "w") as f: f.writelines(new_lines)
     except: pass
 
 def remove_plugin_config(plugin_name):
-    try:
-        with open(CONFIG_FILE, "r") as f: lines = f.readlines()
-        prefix = f"main.plugins.{plugin_name}."
-        new_lines = [l for l in lines if not l.strip().startswith(prefix)]
-        with open(CONFIG_FILE, "w") as f: f.writelines(new_lines)
-    except: pass
+    """Remove the plugin's entire TOML section from config."""
+    update_config(plugin_name, enable=False)
 
 def show_detailed_help():
     """Show detailed help when -h is used"""
