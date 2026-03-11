@@ -7,3 +7,4 @@ https://github.com/cyberartemio/wardriver-pwnagotchi-plugin/archive/main.zip
 https://github.com/AlienMajik/pwnagotchi_plugins/archive/refs/heads/main.zip
 https://github.com/unitMeasure/pwn-plugins/archive/main.zip
 https://github.com/wsvdmeer/pwnagotchi-plugins/archive/main.zip
+https://raw.githubusercontent.com/wpa-2/pwnagotchi-store/main/pwnstore_ui.py
