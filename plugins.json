@@ -470,6 +470,16 @@
     "path_inside_zip": "pwnagotchi-torch-plugins-main/pwndroid.py"
   },
   {
+    "name": "pwnstore_ui",
+    "version": "1.2.7",
+    "description": "Plugin store with web interface for browsing and installing plugins",
+    "author": "WPA2",
+    "category": "Display",
+    "origin_type": "single",
+    "download_url": "https://raw.githubusercontent.com/wpa-2/pwnagotchi-store/main/pwnstore_ui.py",
+    "path_inside_zip": null
+  },
+  {
     "name": "rss_voice",
     "version": "1.0.0",
     "description": "Use RSS Feeds to replace canned voice messages on various events",
