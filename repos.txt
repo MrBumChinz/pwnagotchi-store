@@ -10,3 +10,4 @@ https://github.com/wsvdmeer/pwnagotchi-plugins/archive/main.zip
 https://raw.githubusercontent.com/wpa-2/pwnagotchi-store/main/pwnstore_ui.py
 
 https://github.com/MrBumChinz/pwnrank
+https://github.com/MrBumChinz/community-quickdic
