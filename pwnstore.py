@@ -17,7 +17,7 @@ import shutil
 import re
 
 # --- CONFIGURATION ---
-DEFAULT_REGISTRY = "https://raw.githubusercontent.com/wpa-2/pwnagotchi-store/main/plugins.json"
+DEFAULT_REGISTRY = "https://raw.githubusercontent.com/MrBumChinz/pwnagotchi-store/main/plugins.json"
 
 # Fallback if config.toml has no custom_plugins entry
 DEFAULT_CUSTOM_PLUGIN_DIR = "/etc/pwnagotchi/custom-plugins/"
@@ -376,7 +376,7 @@ def show_detailed_help():
     print(f"  {CYAN}pwnstore info discord{RESET}            View discord plugin details\n")
     
     print(f"Need help?")
-    print(f"  https://github.com/wpa-2/pwnagotchi-store")
+    print(f"  https://github.com/MrBumChinz/pwnagotchi-store")
     print(f"  https://t.me/Pwnagotchi_UK_Chat/\n")
 
 def show_minimal_help():

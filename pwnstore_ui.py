@@ -34,7 +34,7 @@ class PwnStoreUI(plugins.Plugin):
 
     def __init__(self):
         self.ready = False
-        self.store_url = "https://raw.githubusercontent.com/wpa-2/pwnagotchi-store/main/plugins.json"
+        self.store_url = "https://raw.githubusercontent.com/MrBumChinz/pwnagotchi-store/main/plugins.json"
         
     def on_loaded(self):
         logging.info("[pwnstore_ui] Plugin loaded")

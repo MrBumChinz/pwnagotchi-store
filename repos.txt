@@ -9,6 +9,12 @@ https://github.com/unitMeasure/pwn-plugins/archive/main.zip
 https://github.com/wsvdmeer/pwnagotchi-plugins/archive/main.zip
 https://raw.githubusercontent.com/wpa-2/pwnagotchi-store/main/pwnstore_ui.py
 
+<<<<<<< HEAD
 https://github.com/MrBumChinz/pwnrank/archive/master.zip
 https://github.com/MrBumChinz/community-quickdic
 https://github.com/MrBumChinz/Evil-Twin
+=======
+https://github.com/MrBumChinz/pwnrank
+https://github.com/MrBumChinz/community-quickdic/archive/main.zip
+https://github.com/MrBumChinz/Evil-Twin/archive/master.zip
+>>>>>>> bf3e480 (Add: community_quickdic + evil_twin repos; fix upstream URLs to MrBumChinz fork)
