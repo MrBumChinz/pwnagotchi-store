@@ -28,7 +28,7 @@ except ImportError:
 
 class PwnStoreUI(plugins.Plugin):
     __author__ = 'WPA2'
-    __version__ = '1.2.7'
+    __version__ = '3.3.2'
     __license__ = 'GPL3'
     __description__ = 'Plugin store with web interface for browsing and installing plugins'
 
@@ -156,6 +156,8 @@ class PwnStoreUI(plugins.Plugin):
         <button class="filter-btn active" data-category="all">All</button>
         <button class="filter-btn" data-category="Display">Display</button>
         <button class="filter-btn" data-category="GPS">GPS</button>
+        <button class="filter-btn" data-category="Social">Social</button>
+        <button class="filter-btn" data-category="Hardware">Hardware</button>
         <button class="filter-btn" data-category="Attack">Attack</button>
         <button class="filter-btn" data-category="System">System</button>
     </div>
@@ -163,7 +165,7 @@ class PwnStoreUI(plugins.Plugin):
     <div class="stats"><span id="pluginCount">Loading plugins...</span></div>
     <div id="pluginsContainer" class="plugins-grid"></div>
 
-    <div class="footer">Built by <strong>WPA2</strong> • v3.2.6 • <a href="https://github.com/wpa-2/pwnagotchi-store" style="color: #0f0;">GitHub</a></div>
+    <div class="footer">Built by <strong>WPA2</strong> • v3.3.2 • <a href="https://github.com/wpa-2/pwnagotchi-store" style="color: #0f0;">GitHub</a></div>
 
     <script>
         let allPlugins = [];
@@ -208,13 +210,13 @@ class PwnStoreUI(plugins.Plugin):
                 const search = !searchTerm || p.name.toLowerCase().includes(searchTerm) || p.description.toLowerCase().includes(searchTerm);
                 return cat && search;
             });
-            document.getElementById('pluginCount').textContent = `Showing ${filtered.length} plugins`;
+            document.getElementById('pluginCount').textContent = `Showing ${filtered.length} of ${allPlugins.length} plugins`;
             container.innerHTML = filtered.map(p => {
                 const isInst = installedPlugins.includes(p.name);
                 return `
                     <div class="plugin-card" data-name="${p.name}">
                         ${isInst ? '<span class="status-badge installed">✓ INSTALLED</span>' : ''}
-                        <div class="plugin-header"><div class="plugin-name">${p.name}</div></div>
+                        <div class="plugin-header"><div class="plugin-name">${p.name}</div><span class="badge" style="font-size:10px; padding: 2px 6px; margin-left:auto; flex-shrink:0;">v${p.version || '?'}</span></div>
                         <div class="plugin-author">by ${p.author}</div>
                         <div class="plugin-description">${p.description || ''}</div>
                         <div class="plugin-actions">
@@ -260,21 +262,45 @@ class PwnStoreUI(plugins.Plugin):
                 <div class="config-modal">
                     <div class="config-header">
                         <h2>⚙️ ${name} installed!</h2>
-                        <p>Configuration may be required</p>
+                        <p>Enable the plugin in your config to activate it</p>
                     </div>
-                    <div style="margin: 20px 0; text-align: center;">
-                        <p style="margin-bottom: 15px;">Edit <code>/etc/pwnagotchi/config.toml</code> to configure this plugin.</p>
-                        ${repoUrl ? `<a href="${repoUrl}" target="_blank" class="config-btn" style="display: inline-block; text-decoration: none;">📖 View Setup Instructions</a>` : ''}
-                        <button type="button" class="config-btn config-btn-secondary" onclick="document.getElementById('configOverlay').remove()">Close</button>
+                    <div style="margin: 20px 0;">
+                        <button type="button" id="btn-enable-plugin" class="config-btn">✅ Enable in config.toml</button>
+                        ${repoUrl ? `<a href="${repoUrl}" target="_blank" class="config-btn" style="display: block; text-decoration: none; text-align: center; margin-top: 8px;">📖 View Setup Instructions</a>` : ''}
+                        <button type="button" class="config-btn config-btn-secondary" onclick="document.getElementById('configOverlay').remove()" style="margin-top: 8px;">Close</button>
                     </div>
                 </div>
             `;
+            overlay.querySelector('#btn-enable-plugin').onclick = async () => {
+                const btn = overlay.querySelector('#btn-enable-plugin');
+                btn.textContent = 'Saving...'; btn.disabled = true;
+                try {
+                    const res = await apiRequest('/plugins/pwnstore_ui/api/configure', {
+                        method: 'POST', body: JSON.stringify({ plugin: name, config: { enabled: true } })
+                    });
+                    if (res.success) {
+                        btn.textContent = '✅ Enabled!';
+                        showMessage(`${name} enabled in config.toml. Restart to activate.`, 'success');
+                    } else {
+                        btn.textContent = '❌ Failed — edit manually'; btn.disabled = false;
+                    }
+                } catch (e) { btn.textContent = '❌ Error'; btn.disabled = false; }
+            };
             document.body.appendChild(overlay);
         }
 
         function showInfo(name) {
             const p = allPlugins.find(x => x.name === name);
-            alert(`Plugin: ${p.name}\\nAuthor: ${p.author}\\n\\n${p.description}`);
+            if (!p) return;
+            document.getElementById('info-modal-name').textContent = p.name + ' v' + (p.version || '?');
+            document.getElementById('info-modal-author').textContent = 'by ' + (p.author || 'Unknown');
+            document.getElementById('info-modal-desc').textContent = p.description || 'No description available.';
+            const repoEl = document.getElementById('info-modal-repo');
+            let repoUrl = p.download_url || '';
+            if (repoUrl.includes('/archive/')) repoUrl = repoUrl.split('/archive/')[0];
+            if (repoUrl) { repoEl.href = repoUrl; repoEl.style.display = 'block'; }
+            else { repoEl.style.display = 'none'; }
+            document.getElementById('info-overlay').style.display = 'flex';
         }
 
         function showMessage(text, type) {
@@ -296,6 +322,18 @@ class PwnStoreUI(plugins.Plugin):
         });
         loadData();
     </script>
+    <div class="config-overlay" id="info-overlay" style="display:none;">
+        <div class="config-modal">
+            <div class="config-header">
+                <h2 id="info-modal-name" style="font-size:18px;"></h2>
+                <p id="info-modal-author" style="font-size:12px; color:#0a0; margin-top:4px;"></p>
+            </div>
+            <div id="info-modal-desc" style="margin: 15px 0; font-size: 13px; color: #ccc; line-height: 1.6;"></div>
+            <a id="info-modal-repo" href="#" target="_blank" class="config-btn" style="display:none; text-decoration:none; text-align:center; margin-bottom:8px; display:block;">📂 View Source Repo</a>
+            <button class="config-btn config-btn-secondary" onclick="document.getElementById('info-overlay').style.display='none'">Close</button>
+        </div>
+    </div>
+
 </body>
 </html>
         """

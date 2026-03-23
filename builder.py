@@ -7,6 +7,7 @@ import zipfile
 import os
 import logging
 from collections import defaultdict
+from datetime import date
 
 # --- CONFIGURATION ---
 INPUT_FILE = "repos.txt"
@@ -57,23 +58,26 @@ def parse_python_content(code, filename, origin_url, internal_path=None):
 
         data['version'] = version_match.group(1) if version_match else "0.0.1"
         data['author'] = author_match.group(1) if author_match else "Unknown"
-        data['description'] = desc_match.group(2).strip() if desc_match else "No description provided."
+        data['description'] = desc_match.group(2).strip() if desc_match else ""
+        
+        # Skip plugins with no description — they pollute the registry
+        if not data['description']:
+            logging.debug(f"    [-] {filename.split('/')[-1]} skipped — no __description__")
+            return None
         
         # Determine category
         data['category'] = detect_category(filename.replace(".py", ""), data['description'], code)
 
-        # Only return data if we found enough metadata
-        if data['description'] != "No description provided." or data['version'] != "0.0.1":
-            return {
-                "name": filename.replace(".py", ""),
-                "version": data['version'],
-                "description": data['description'],
-                "author": data['author'],
-                "category": data['category'],
-                "origin_type": "zip" if internal_path else "single",
-                "download_url": origin_url,
-                "path_inside_zip": internal_path
-            }
+        return {
+            "name": filename.replace(".py", ""),
+            "version": data['version'],
+            "description": data['description'],
+            "author": data['author'],
+            "category": data['category'],
+            "origin_type": "zip" if internal_path else "single",
+            "download_url": origin_url,
+            "path_inside_zip": internal_path
+        }
         
     except Exception as e:
         # Silently fail here (pass) to prevent the build process from crashing 
@@ -109,6 +113,18 @@ def process_zip_url(url):
 def main():
     print("--- PwnStore Builder v1.2 Starting ---")
     master_list = []
+
+    # Load existing date_added values so we don't overwrite them on re-runs
+    existing_dates = {}
+    if os.path.exists(OUTPUT_FILE):
+        try:
+            with open(OUTPUT_FILE) as f:
+                for p in json.load(f):
+                    if p.get('date_added'):
+                        existing_dates[p['name'].lower()] = p['date_added']
+        except Exception:
+            pass
+    today = date.today().isoformat()
     
     if not os.path.exists(INPUT_FILE):
         logging.error(f"Error: {INPUT_FILE} not found.")
@@ -142,6 +158,10 @@ def main():
             
     # Sort the final list alphabetically by name
     sorted_plugins = sorted(final_plugins.values(), key=lambda p: p['name'].lower())
+
+    # Stamp date_added: preserve existing dates, assign today for new entries
+    for p in sorted_plugins:
+        p['date_added'] = existing_dates.get(p['name'].lower(), today)
 
     with open(OUTPUT_FILE, "w") as f:
         json.dump(sorted_plugins, f, indent=2)
