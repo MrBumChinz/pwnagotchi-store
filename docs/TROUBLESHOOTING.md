@@ -48,9 +48,9 @@ which pwnstore
 
 #### Plugin Install Fails
 
-**Check logs:**
+**Check network connectivity:**
 ```bash
-sudo pwnstore install <plugin> --verbose
+ping -c 3 github.com
 ```
 
 **Common causes:**
@@ -59,11 +59,10 @@ sudo pwnstore install <plugin> --verbose
 - Plugin URL changed
 - Permissions problem
 
-**Manual install:**
+**Try manual install** (check your `custom_plugins` path in `/etc/pwnagotchi/config.toml` first):
 ```bash
-cd /usr/local/share/pwnagotchi/custom-plugins/
-wget <plugin_raw_url>
-sudo chmod +x <plugin_name>.py
+cd <your_custom_plugins_directory>
+sudo wget <plugin_raw_url>
 ```
 
 #### Plugin Won't Load After Install
@@ -135,7 +134,7 @@ Look for JavaScript errors
 
 Update to latest version:
 ```bash
-sudo wget -O /usr/local/share/pwnagotchi/custom-plugins/pwnstore_ui.py https://raw.githubusercontent.com/wpa-2/pwnagotchi-store/main/pwnstore_ui.py
+sudo pwnstore install pwnstore_ui
 sudo systemctl restart pwnagotchi
 ```
 
@@ -232,9 +231,9 @@ When something goes wrong, check these in order:
    cat /etc/pwnagotchi/config.toml
    ```
 
-5. **Check file permissions:**
+5. **Check plugin files exist:**
    ```bash
-   ls -la /usr/local/share/pwnagotchi/custom-plugins/
+   ls -la $(grep custom_plugins /etc/pwnagotchi/config.toml | cut -d'"' -f2)
    ```
 
 6. **Restart everything:**

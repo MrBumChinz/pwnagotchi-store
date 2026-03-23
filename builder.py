@@ -25,6 +25,22 @@ KEYWORDS = {
     'System': ['backup', 'ssh', 'log', 'update', 'fix', 'clean', 'config', 'manage', 'util', 'internet', 'wifi', 'connection']
 }
 
+def compare_versions(v1, v2):
+    """Compare semantic versions properly. Returns 1 if v1>v2, -1 if v1<v2, 0 if equal."""
+    try:
+        v1_parts = [int(x) for x in v1.lstrip('v').split('.')]
+        v2_parts = [int(x) for x in v2.lstrip('v').split('.')]
+        while len(v1_parts) < len(v2_parts): v1_parts.append(0)
+        while len(v2_parts) < len(v1_parts): v2_parts.append(0)
+        for a, b in zip(v1_parts, v2_parts):
+            if a > b: return 1
+            elif a < b: return -1
+        return 0
+    except:
+        if v1 > v2: return 1
+        elif v1 < v2: return -1
+        return 0
+
 def detect_category(name, description, code):
     scores = defaultdict(int)
     name_lower = name.lower()
@@ -107,7 +123,7 @@ def process_zip_url(url):
     return found
 
 def main():
-    print("--- PwnStore Builder v1.2 Starting ---")
+    print("--- PwnStore Builder v1.3 Starting ---")
     master_list = []
     
     if not os.path.exists(INPUT_FILE):
@@ -137,7 +153,7 @@ def main():
     for plugin in master_list:
         name_key = plugin['name'].lower()
         # Keep the plugin if it's new, or if the current one is a higher version
-        if name_key not in final_plugins or plugin['version'] > final_plugins[name_key]['version']:
+        if name_key not in final_plugins or compare_versions(plugin['version'], final_plugins[name_key]['version']) > 0:
             final_plugins[name_key] = plugin
             
     # Sort the final list alphabetically by name

@@ -1,9 +1,9 @@
 """
-PwnStore - Plugin Store for Pwnagotchi
+PwnStore UI - Plugin Store for Pwnagotchi
 Browse and install plugins directly from the web UI
 
 Author: WPA2
-Version: 3.2.6
+Version: 1.2.8
 """
 
 import logging
@@ -26,9 +26,14 @@ except ImportError:
     CSRF_AVAILABLE = False
 
 
+def is_safe_name(name):
+    """Security: Prevents path traversal and command injection"""
+    return bool(name) and re.match(r'^[a-zA-Z0-9_-]+$', name) is not None
+
+
 class PwnStoreUI(plugins.Plugin):
     __author__ = 'WPA2'
-    __version__ = '1.2.7'
+    __version__ = '1.2.8'
     __license__ = 'GPL3'
     __description__ = 'Plugin store with web interface for browsing and installing plugins'
 
@@ -42,7 +47,6 @@ class PwnStoreUI(plugins.Plugin):
 
     def _get_custom_plugin_dir(self):
         """Read custom_plugins path from config.toml, matching pwnstore CLI behaviour."""
-        import re
         config_file = "/etc/pwnagotchi/config.toml"
         default = "/etc/pwnagotchi/custom-plugins"
         try:
@@ -156,6 +160,8 @@ class PwnStoreUI(plugins.Plugin):
         <button class="filter-btn active" data-category="all">All</button>
         <button class="filter-btn" data-category="Display">Display</button>
         <button class="filter-btn" data-category="GPS">GPS</button>
+        <button class="filter-btn" data-category="Social">Social</button>
+        <button class="filter-btn" data-category="Hardware">Hardware</button>
         <button class="filter-btn" data-category="Attack">Attack</button>
         <button class="filter-btn" data-category="System">System</button>
     </div>
@@ -163,7 +169,7 @@ class PwnStoreUI(plugins.Plugin):
     <div class="stats"><span id="pluginCount">Loading plugins...</span></div>
     <div id="pluginsContainer" class="plugins-grid"></div>
 
-    <div class="footer">Built by <strong>WPA2</strong> • v3.2.6 • <a href="https://github.com/wpa-2/pwnagotchi-store" style="color: #0f0;">GitHub</a></div>
+    <div class="footer">Built by <strong>WPA2</strong> • v1.2.8 • <a href="https://github.com/wpa-2/pwnagotchi-store" style="color: #0f0;">GitHub</a></div>
 
     <script>
         let allPlugins = [];
@@ -315,6 +321,9 @@ class PwnStoreUI(plugins.Plugin):
         try:
             data = request.get_json(force=True)
             name, vals = data.get('plugin'), data.get('config', {})
+            if not is_safe_name(name):
+                return Response(json.dumps({'success': False, 'error': 'Invalid plugin name'}),
+                               status=400, mimetype='application/json')
             config_file = "/etc/pwnagotchi/config.toml"
             section_header = f"[main.plugins.{name}]"
             with open(config_file, 'r') as f:
@@ -338,6 +347,8 @@ class PwnStoreUI(plugins.Plugin):
             new_lines.append("enabled = true\n")
             for k, v in vals.items():
                 if k == 'enabled': continue
+                # Validate config key names
+                if not re.match(r'^[a-zA-Z0-9_]+$', k): continue
                 v_str = str(v).strip()
                 if v_str.lower() in ['true', 'false'] or v_str.isdigit() or (v_str.startswith('[') and v_str.endswith(']')):
                     new_lines.append(f"{k} = {v_str.lower() if v_str.lower() in ['true', 'false'] else v_str}\n")
@@ -361,15 +372,18 @@ class PwnStoreUI(plugins.Plugin):
 
     def _install_plugin(self, request):
         data = request.get_json(force=True)
-        name = data.get('plugin')
+        name = data.get('plugin', '')
+        if not is_safe_name(name):
+            return Response(json.dumps({'success': False, 'error': 'Invalid plugin name'}),
+                           status=400, mimetype='application/json')
         result = subprocess.run(['pwnstore', 'install', name], capture_output=True, text=True)
         
         # Get repo URL
         repo_url = ''
         try:
             r = requests.get(self.store_url, timeout=10)
-            plugins = r.json()
-            plugin_data = next((p for p in plugins if p['name'] == name), None)
+            plugin_list = r.json()
+            plugin_data = next((p for p in plugin_list if p['name'] == name), None)
             if plugin_data:
                 repo_url = plugin_data.get('download_url', '')
                 if '/archive/' in repo_url:
@@ -384,5 +398,9 @@ class PwnStoreUI(plugins.Plugin):
 
     def _uninstall_plugin(self, request):
         data = request.get_json(force=True)
-        subprocess.run(['pwnstore', 'uninstall', data.get('plugin')])
+        name = data.get('plugin', '')
+        if not is_safe_name(name):
+            return Response(json.dumps({'success': False, 'error': 'Invalid plugin name'}),
+                           status=400, mimetype='application/json')
+        subprocess.run(['pwnstore', 'uninstall', name])
         return Response(json.dumps({'success': True}), mimetype='application/json')

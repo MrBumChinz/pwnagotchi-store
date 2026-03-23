@@ -14,25 +14,17 @@ Access PwnStore through your browser on mobile or desktop - no SSH required!
 # 1. Install CLI tool (if not already installed)
 sudo wget -O /usr/local/bin/pwnstore https://raw.githubusercontent.com/wpa-2/pwnagotchi-store/main/pwnstore.py && sudo chmod +x /usr/local/bin/pwnstore
 
-# 2. Download the UI plugin
-sudo wget -O /usr/local/share/pwnagotchi/custom-plugins/pwnstore_ui.py https://raw.githubusercontent.com/wpa-2/pwnagotchi-store/main/pwnstore_ui.py
+# 2. Install the UI plugin via PwnStore
+sudo pwnstore install pwnstore_ui
 
-# 3. Enable in config
-sudo nano /etc/pwnagotchi/config.toml
+# 3. Restart Pwnagotchi
+sudo systemctl restart pwnagotchi
 ```
 
-Add these lines:
+> **Note:** PwnStore automatically enables plugins in your `config.toml`. If you need to do it manually, add:
 ```toml
-[main.plugins.pwnstore]
-enabled = true
-
 [main.plugins.pwnstore_ui]
 enabled = true
-```
-
-Restart Pwnagotchi:
-```bash
-sudo systemctl restart pwnagotchi
 ```
 
 ### Access the Web UI
@@ -104,7 +96,7 @@ Browse the complete plugin catalog from anywhere - no Pwnagotchi needed!
 
 ### What You Can Do
 
-- 📖 **Browse all 66+ plugins** with full descriptions
+- 📖 **Browse all 70+ plugins** with full descriptions
 - 🔍 **Search by name** or filter by category
 - 📋 **Copy install commands** - click any plugin
 - 🔗 **View GitHub sources** - direct repo links
@@ -188,7 +180,7 @@ which pwnstore
 
 Make sure you're running the latest version:
 ```bash
-sudo wget -O /usr/local/share/pwnagotchi/custom-plugins/pwnstore_ui.py https://raw.githubusercontent.com/wpa-2/pwnagotchi-store/main/pwnstore_ui.py
+sudo pwnstore install pwnstore_ui
 sudo systemctl restart pwnagotchi
 ```
 

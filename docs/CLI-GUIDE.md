@@ -53,9 +53,8 @@ Shows:
 
 ### Install a Plugin
 Downloads the plugin and automatically:
-- Places it in `/usr/local/share/pwnagotchi/custom-plugins/`
+- Places it in your custom plugins directory (read from `config.toml`)
 - Adds `enabled = true` to your `config.toml`
-- Scans for required settings (API keys, etc.)
 
 ```bash
 sudo pwnstore install <plugin_name>
@@ -79,8 +78,8 @@ sudo pwnstore uninstall <plugin_name>
 
 ## 🔄 Updates
 
-### Update Plugin Registry
-Refresh the list of available plugins:
+### Update Installed Plugins
+Check for and apply updates to your installed plugins:
 ```bash
 sudo pwnstore update
 ```
@@ -110,7 +109,7 @@ github.com/NeonLightning/pwny                      | 12
 github.com/AlienMajik/pwnagotchi_plugins           | 10
 github.com/wpa-2/Pwnagotchi-Plugins                | 7
 -----------------------------------------------------------------
-Total Plugins Indexed: 66
+Total Plugins Indexed: 71
 ```
 
 ---
@@ -137,7 +136,7 @@ pwnlog
 
 ### Keeping Everything Updated
 ```bash
-# Update the plugin list
+# Update installed plugins
 sudo pwnstore update
 
 # Upgrade PwnStore itself
@@ -163,16 +162,10 @@ pwnstore search discord telegram
 
 ## 🔧 Advanced Usage
 
-### Verbose Output
-Get detailed debugging info:
-```bash
-sudo pwnstore install <plugin> --verbose
-```
-
 ### Check Installed Plugins
 List what's currently in your plugins directory:
 ```bash
-ls -la /usr/local/share/pwnagotchi/custom-plugins/
+ls -la $(grep custom_plugins /etc/pwnagotchi/config.toml | cut -d'"' -f2)
 ```
 
 ### View Plugin Config
@@ -192,14 +185,16 @@ sudo wget -O /usr/local/bin/pwnstore https://raw.githubusercontent.com/wpa-2/pwn
 ```
 
 ### Install Fails
-```bash
-# Check logs
-sudo pwnstore install <plugin> --verbose
 
-# Try manual install
-cd /usr/local/share/pwnagotchi/custom-plugins/
-wget <plugin_raw_url>
-sudo chmod +x <plugin_name>.py
+**Check network connectivity:**
+```bash
+ping -c 3 github.com
+```
+
+**Try manual install** (check your `custom_plugins` path in `/etc/pwnagotchi/config.toml` first):
+```bash
+cd <your_custom_plugins_directory>
+sudo wget <plugin_raw_url>
 ```
 
 ### Plugin Won't Load
@@ -222,7 +217,7 @@ sudo pwnagotchi --debug
 1. **Always use sudo** for install/uninstall operations
 2. **Update regularly** to get new plugins: `sudo pwnstore update`
 3. **Check logs** after installing: `pwnlog`
-4. **Read plugin info** before installing: `pwnstore info <name>`
+4. **Read plugin info** before installing: `pwnstore info <n>`
 5. **Restart Pwnagotchi** after installing plugins
 6. **⚠️ NEVER run** `sudo apt-get upgrade` (breaks Pwnagotchi!)
 7. **✅ OK to run** `sudo apt-get update`

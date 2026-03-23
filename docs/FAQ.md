@@ -52,7 +52,7 @@ You'll need to give it internet access (USB tethering, WiFi, Ethernet) to downlo
 
 ### How many plugins are available?
 
-Currently **66+ plugins** from 8 different GitHub repositories. The list grows regularly!
+Currently **70+ plugins** from 8 different GitHub repositories. The list grows regularly!
 
 ### Are plugins safe?
 
@@ -60,12 +60,7 @@ PwnStore indexes community plugins from known repositories. Always review the pl
 
 ### Can I install plugins manually without PwnStore?
 
-Yes! PwnStore just makes it easier. You can always:
-```bash
-cd /usr/local/share/pwnagotchi/custom-plugins/
-wget <plugin_url>
-sudo chmod +x <plugin_name>.py
-```
+Yes! PwnStore just makes it easier. Check your `custom_plugins` path in `/etc/pwnagotchi/config.toml`, then download the plugin file directly into that directory.
 
 ### Why doesn't my plugin work after installing?
 
@@ -83,11 +78,7 @@ See [Troubleshooting Guide](TROUBLESHOOTING.md) for solutions.
 sudo pwnstore uninstall <plugin_name>
 ```
 
-Or manually:
-```bash
-sudo rm /usr/local/share/pwnagotchi/custom-plugins/<plugin>.py
-# Then remove from config.toml
-```
+Or manually: delete the `.py` file from your custom plugins directory and remove the plugin's section from `config.toml`.
 
 ---
 
@@ -99,13 +90,16 @@ sudo rm /usr/local/share/pwnagotchi/custom-plugins/<plugin>.py
 
 Edit with: `sudo nano /etc/pwnagotchi/config.toml`
 
+### Where do plugins get installed?
+
+PwnStore reads the `custom_plugins` path from your `config.toml` and installs there. You can check your path with:
+```bash
+grep custom_plugins /etc/pwnagotchi/config.toml
+```
+
 ### Does PwnStore modify my config?
 
 Yes, but safely! It adds an `enabled = true` line for each plugin. You can edit or remove these anytime.
-
-### Can I disable PwnStore's auto-config?
-
-PwnStore doesn't have a "disable auto-config" option, but you can always manually edit `config.toml` after installation.
 
 ### What's the difference between config.toml and default.toml?
 
@@ -116,23 +110,19 @@ PwnStore doesn't have a "disable auto-config" option, but you can always manuall
 
 ## 🔄 Update Questions
 
-### How do I update the plugin list?
+### How do I update installed plugins?
 
 ```bash
 sudo pwnstore update
 ```
 
-This refreshes the registry with any new plugins.
+This checks your installed plugins against the registry and offers to update any that have newer versions.
 
 ### How do I update PwnStore itself?
 
 ```bash
 sudo pwnstore upgrade
 ```
-
-### Do I need to update plugins individually?
-
-Not yet - bulk plugin updates are on the roadmap! For now, reinstall plugins to get new versions.
 
 ### How often should I update?
 
@@ -218,7 +208,7 @@ See the [Contributing Guide](CONTRIBUTING.md)!
 
 TL;DR:
 1. Fork the repo
-2. Add your GitHub URL to `repos.txt`
+2. Add your ZIP archive or raw file URL to `repos.txt`
 3. Submit PR
 
 ### How long until my plugin appears?
@@ -339,7 +329,7 @@ sudo pwnstore install <plugin>
 # Uninstall
 sudo pwnstore uninstall <plugin>
 
-# Update registry
+# Update installed plugins
 sudo pwnstore update
 
 # Upgrade PwnStore
