@@ -285,17 +285,17 @@
             
             <div class="cmd-row">
                 <div class="cmd-label" style="color:var(--accent)">INSTALL</div>
-                <div class="cmd-box" onclick="copyText(this)">sudo pwnstore install <span id="p-name"></span></div>
+                <div class="cmd-box" data-cmd="install" onclick="copyText(this)"></div>
             </div>
 
             <div class="cmd-row">
                 <div class="cmd-label" style="color:var(--danger)">UNINSTALL</div>
-                <div class="cmd-box" onclick="copyText(this)">sudo pwnstore uninstall <span id="p-name-un"></span></div>
+                <div class="cmd-box" data-cmd="uninstall" onclick="copyText(this)"></div>
             </div>
 
             <div class="cmd-row">
                 <div class="cmd-label" style="color:var(--info)">INFO</div>
-                <div class="cmd-box" onclick="copyText(this)">pwnstore info <span id="p-name-info"></span></div>
+                <div class="cmd-box" data-cmd="info" onclick="copyText(this)"></div>
             </div>
             
             <p style="text-align:center; color:#555; font-size:0.8rem; margin-top:20px; font-family:var(--font-main);">
@@ -377,18 +377,13 @@
         function openModal(name) {
             document.getElementById('modal-title').innerText = name;
             
+            document.querySelector('[data-cmd="install"]').innerText = 'sudo pwnstore install ' + name;
+            document.querySelector('[data-cmd="uninstall"]').innerText = 'sudo pwnstore uninstall ' + name;
+            document.querySelector('[data-cmd="info"]').innerText = 'pwnstore info ' + name;
+
             document.querySelectorAll('.cmd-box').forEach(box => {
                 box.style.borderColor = "#333";
                 box.style.color = "#ccc";
-                
-                let fullText = box.innerText;
-                let parts = fullText.trim().split(' ');
-                let base = "";
-                
-                if(parts[0] === 'sudo') base = parts[0] + " " + parts[1] + " " + parts[2];
-                else base = parts[0] + " " + parts[1];
-                
-                box.innerText = base + " " + name;
             });
 
             modal.style.display = 'flex';

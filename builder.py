@@ -26,6 +26,22 @@ KEYWORDS = {
     'System': ['backup', 'ssh', 'log', 'update', 'fix', 'clean', 'config', 'manage', 'util', 'internet', 'wifi', 'connection']
 }
 
+def compare_versions(v1, v2):
+    """Compare semantic versions properly. Returns 1 if v1>v2, -1 if v1<v2, 0 if equal."""
+    try:
+        v1_parts = [int(x) for x in v1.lstrip('v').split('.')]
+        v2_parts = [int(x) for x in v2.lstrip('v').split('.')]
+        while len(v1_parts) < len(v2_parts): v1_parts.append(0)
+        while len(v2_parts) < len(v1_parts): v2_parts.append(0)
+        for a, b in zip(v1_parts, v2_parts):
+            if a > b: return 1
+            elif a < b: return -1
+        return 0
+    except:
+        if v1 > v2: return 1
+        elif v1 < v2: return -1
+        return 0
+
 def detect_category(name, description, code):
     scores = defaultdict(int)
     name_lower = name.lower()
@@ -44,22 +60,61 @@ def detect_category(name, description, code):
     if not scores: return "System"
     return max(scores, key=scores.get)
 
+def resolve_variable(code, var_name):
+    """Resolve a variable name to its string literal value in the source code."""
+    val_match = re.search(rf'{re.escape(var_name)}\s*=\s*[\'"](.+?)[\'"]', code)
+    return val_match.group(1) if val_match else None
+
+def resolve_paren_string(code, attr_name):
+    """Resolve __attr__ = ("str1 " "str2 " "str3") to a joined string."""
+    paren_match = re.search(rf'{attr_name}\s*=\s*\(([\s\S]*?)\)', code)
+    if not paren_match:
+        return None
+    inner = paren_match.group(1)
+    # Match double-quoted strings first (handles apostrophes), fall back to single
+    parts = re.findall(r'"((?:[^"\\]|\\.)*)"', inner)
+    if not parts:
+        parts = re.findall(r"'((?:[^'\\]|\\.)*)'", inner)
+    return "".join(parts).strip() if parts else None
+
 def parse_python_content(code, filename, origin_url, internal_path=None):
     data = {}
     
     try:
-        # --- ROBUST REGEX FIX for Description ---
-        # Captures content between matching quotes ("..." or '...') ignoring internal apostrophes.
-        desc_match = re.search(r"__description__\s*=\s*([\"'])((?:(?!\1).)*)\1", code, re.DOTALL)
-        
-        # Check for version and author (standard regex)
+        # --- Version: try string literal first, then variable reference ---
         version_match = re.search(r"__version__\s*=\s*['\"](.+?)['\"]", code)
-        author_match = re.search(r"__author__\s*=\s*['\"](.+?)['\"]", code)
+        if version_match:
+            data['version'] = version_match.group(1)
+        else:
+            # Handle __version__ = SOME_VARIABLE
+            var_match = re.search(r"__version__\s*=\s*([A-Za-z_][A-Za-z0-9_]*)", code)
+            resolved = resolve_variable(code, var_match.group(1)) if var_match else None
+            data['version'] = resolved if resolved else "0.0.1"
 
-        data['version'] = version_match.group(1) if version_match else "0.0.1"
-        data['author'] = author_match.group(1) if author_match else "Unknown"
-        data['description'] = desc_match.group(2).strip() if desc_match else ""
-        
+        # --- Author: string literal or variable reference ---
+        author_match = re.search(r"__author__\s*=\s*['\"](.+?)['\"]", code)
+        if author_match:
+            data['author'] = author_match.group(1)
+        else:
+            var_match = re.search(r"__author__\s*=\s*([A-Za-z_][A-Za-z0-9_]*)", code)
+            resolved = resolve_variable(code, var_match.group(1)) if var_match else None
+            data['author'] = resolved if resolved else "Unknown"
+
+        # --- Description: string literal, then parenthesized multi-line, then variable ---
+        desc_match = re.search(r"__description__\s*=\s*([\"'])((?:(?!\1).)*)\1", code, re.DOTALL)
+        if desc_match:
+            data['description'] = desc_match.group(2).strip()
+        else:
+            # Handle __description__ = ("str1 " "str2 " "str3")
+            paren_desc = resolve_paren_string(code, '__description__')
+            if paren_desc:
+                data['description'] = paren_desc
+            else:
+                # Handle __description__ = SOME_VARIABLE
+                var_match = re.search(r"__description__\s*=\s*([A-Za-z_][A-Za-z0-9_]*)", code)
+                resolved = resolve_variable(code, var_match.group(1)) if var_match else None
+                data['description'] = resolved if resolved else ""
+
         # Skip plugins with no description — they pollute the registry
         if not data['description']:
             logging.debug(f"    [-] {filename.split('/')[-1]} skipped — no __description__")
@@ -111,7 +166,7 @@ def process_zip_url(url):
     return found
 
 def main():
-    print("--- PwnStore Builder v1.2 Starting ---")
+    print("--- PwnStore Builder v1.3 Starting ---")
     master_list = []
 
     # Load existing date_added values so we don't overwrite them on re-runs
@@ -153,7 +208,7 @@ def main():
     for plugin in master_list:
         name_key = plugin['name'].lower()
         # Keep the plugin if it's new, or if the current one is a higher version
-        if name_key not in final_plugins or plugin['version'] > final_plugins[name_key]['version']:
+        if name_key not in final_plugins or compare_versions(plugin['version'], final_plugins[name_key]['version']) > 0:
             final_plugins[name_key] = plugin
             
     # Sort the final list alphabetically by name

@@ -2,7 +2,7 @@
 
 **Stop downloading massive ZIP files.** Install Pwnagotchi plugins surgically—one file at a time.
 
-[![CLI Version](https://img.shields.io/badge/CLI-v2.5-green)](https://github.com/wpa-2/pwnagotchi-store) [![UI Version](https://img.shields.io/badge/Web_UI-v1.0-blue)](https://github.com/wpa-2/pwnagotchi-store) [![Gallery](https://img.shields.io/badge/Gallery-Live-orange)](https://pwnstore.org/) [![License](https://img.shields.io/badge/license-GPL3-red)](LICENSE)
+[![CLI Version](https://img.shields.io/badge/CLI-v3.3.2-green)](https://github.com/wpa-2/pwnagotchi-store) [![UI Version](https://img.shields.io/badge/Web_UI-v1.2.8-blue)](https://github.com/wpa-2/pwnagotchi-store) [![Gallery](https://img.shields.io/badge/Gallery-Live-orange)](https://pwnstore.org/) [![License](https://img.shields.io/badge/license-GPL3-red)](LICENSE)
 
 ---
 
@@ -15,7 +15,7 @@ sudo wget -O /usr/local/bin/pwnstore https://raw.githubusercontent.com/wpa-2/pwn
 
 Then browse and install plugins:
 ```bash
-pwnstore list              # Browse 66+ plugins
+pwnstore list              # Browse 70+ plugins
 sudo pwnstore install <plugin_name>
 ```
 
@@ -74,7 +74,7 @@ Step-by-step wizard with click-to-copy commands. Works on any device!
 
 ## 📊 Quick Stats
 
-- **66+ plugins** indexed and ready to install
+- **70+ plugins** indexed and ready to install
 - **8 repository sources** automatically monitored
 - **6 categories** for easy discovery
 - **Auto-updated** registry via GitHub Actions
