@@ -2,7 +2,7 @@
 
 **Stop downloading massive ZIP files.** Install Pwnagotchi plugins surgically—one file at a time.
 
-[![CLI Version](https://img.shields.io/badge/CLI-v2.5-green)](https://github.com/MrBumChinz/pwnagotchi-store) [![UI Version](https://img.shields.io/badge/Web_UI-v1.0-blue)](https://github.com/MrBumChinz/pwnagotchi-store) [![Gallery](https://img.shields.io/badge/Gallery-Live-orange)](https://pwnstore.org/) [![License](https://img.shields.io/badge/license-GPL3-red)](LICENSE)
+[![CLI Version](https://img.shields.io/badge/CLI-v2.5-green)](https://github.com/wpa-2/pwnagotchi-store) [![UI Version](https://img.shields.io/badge/Web_UI-v1.0-blue)](https://github.com/wpa-2/pwnagotchi-store) [![Gallery](https://img.shields.io/badge/Gallery-Live-orange)](https://pwnstore.org/) [![License](https://img.shields.io/badge/license-GPL3-red)](LICENSE)
 
 ---
 
@@ -10,7 +10,7 @@
 
 SSH into your Pwnagotchi and run:
 ```bash
-sudo wget -O /usr/local/bin/pwnstore https://raw.githubusercontent.com/MrBumChinz/pwnagotchi-store/main/pwnstore.py && sudo chmod +x /usr/local/bin/pwnstore
+sudo wget -O /usr/local/bin/pwnstore https://raw.githubusercontent.com/wpa-2/pwnagotchi-store/main/pwnstore.py && sudo chmod +x /usr/local/bin/pwnstore
 ```
 
 Then browse and install plugins:
