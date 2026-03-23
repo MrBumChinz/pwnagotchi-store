@@ -470,6 +470,16 @@
     "path_inside_zip": "pwnagotchi-torch-plugins-main/pwndroid.py"
   },
   {
+    "name": "pwnrank",
+    "version": "1.0.0",
+    "description": "RPG levelling + Pwn Elo competitive ranking for pwnagotchi",
+    "author": "Handshakemon",
+    "category": "Attack",
+    "origin_type": "zip",
+    "download_url": "https://github.com/MrBumChinz/pwnrank/archive/master.zip",
+    "path_inside_zip": "pwnrank-main/pwnrank.py"
+  },
+  {
     "name": "pwnstore_ui",
     "version": "1.2.7",
     "description": "Plugin store with web interface for browsing and installing plugins",
