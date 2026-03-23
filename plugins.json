@@ -12,7 +12,7 @@
   {
     "name": "age",
     "version": "4.0.0",
-    "description": "No description provided.",
+    "description": "Age plugin with prestige, random events, animated progress, narrative lore, cheeky quotes, and a dedicated status display.",
     "author": "AlienMajik",
     "category": "Display",
     "origin_type": "zip",
@@ -128,6 +128,16 @@
     "origin_type": "zip",
     "download_url": "https://github.com/Sniffleupagus/pwnagotchi_plugins/archive/master.zip",
     "path_inside_zip": "pwnagotchi_plugins-main/cmd_server.py"
+  },
+  {
+    "name": "community_quickdic",
+    "version": "1.0.0",
+    "description": "Community-sourced dictionary cracker. Cracks captured handshakes on-device using aircrack-ng and a shared ISP factory-default password pool. Add your ISP default to config \u2014 no GitHub account or token needed. Everyone contributes, everyone benefits.",
+    "author": "MrBumChinz / community",
+    "category": "Display",
+    "origin_type": "single",
+    "download_url": "https://raw.githubusercontent.com/MrBumChinz/community-quickdic/refs/heads/main/community_quickdic.py",
+    "path_inside_zip": null
   },
   {
     "name": "console",
@@ -602,7 +612,7 @@
   {
     "name": "theylive",
     "version": "2.1.0",
-    "description": "No description provided.",
+    "description": "Advanced GPS plugin for pwnagotchi: displays rich GPS data on screen, logs per-handshake and continuous tracks,",
     "author": "discord@rai68 (original) - enhanced by AlienMajik",
     "category": "Display",
     "origin_type": "zip",
